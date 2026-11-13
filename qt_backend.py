@@ -47,6 +47,7 @@ class ScanResult:
     dlc: dict[str, tuple[str, str]] = field(default_factory=dict)
     dlc_grant_ids: frozenset[int] = frozenset()
     master_effects: dict[int, tuple[str, ...]] = field(default_factory=dict)
+    russian_master_effects: dict[str, str] = field(default_factory=dict)
 
 
 def find_game_install(preferred: str = "") -> Path | None:
@@ -122,11 +123,12 @@ def scan_game_tables(root: Path) -> ScanResult:
                 items.setdefault(item_id, item)
         files.append(source)
     try:
-        translations = read_item_text()
+        translations, russian_master_effects = read_item_text()
     except (OSError, ValueError):
-        translations = {}
+        translations, russian_master_effects = {}, {}
         errors.append("The optional item translations could not be loaded.")
-    return ScanResult(root, tuple(files), items, tuple(errors), translations, fish, dlc, grant_ids, master_effects)
+    return ScanResult(root, tuple(files), items, tuple(errors), translations, fish, dlc, grant_ids,
+                      master_effects, russian_master_effects)
 
 
 def uses_language(text: str, language: str) -> bool:
@@ -135,10 +137,10 @@ def uses_language(text: str, language: str) -> bool:
     return bool(LATIN.search(text) and not NON_LATIN.search(text))
 
 
-def read_item_text() -> dict[str, dict[ItemKey, tuple[str, str]]]:
+def read_item_text() -> tuple[dict[str, dict[ItemKey, tuple[str, str]]], dict[str, str]]:
     path = BUNDLED_ITEM_TEXT if BUNDLED_ITEM_TEXT.is_file() else ITEM_TEXT
     if not path.is_file():
-        return {}
+        return {}, {}
     raw = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError("Invalid item translations.")
@@ -154,7 +156,12 @@ def read_item_text() -> dict[str, dict[ItemKey, tuple[str, str]]]:
             if uses_language(value[0], language):
                 localized[int(key) if key.isdecimal() else key] = tuple(value)
         translations[language] = localized
-    return translations
+    effects = raw.get("ru_master_effects", {})
+    if not isinstance(effects, dict) or not all(
+        isinstance(text, str) and uses_language(text, "ru") for text in effects.values()
+    ):
+        raise ValueError("Invalid master quartz effect translations.")
+    return translations, effects
 
 
 def read_english_catalog(path: Path) -> dict[int, tuple[str, str]]:
@@ -379,6 +386,15 @@ class EditorCore:
     def details_text(self, item_id: ItemKey) -> str:
         _, description = self._item_text(item_id)
         return description
+
+    def master_effect_titles(self, item_id: ItemKey) -> tuple[str, ...]:
+        if self.last_scan is None:
+            return ()
+        effects = self.last_scan.master_effects.get(item_id, ())
+        if self.language == "ru":
+            localized = self.last_scan.russian_master_effects
+            return tuple(localized.get(effect, effect) for effect in effects)
+        return effects
 
     def missing_translations(self) -> list[tuple[ItemKey, str]]:
         missing = []

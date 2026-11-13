@@ -1,6 +1,6 @@
 # Local game artwork
 
-The standard CI build uses the editor's airship icon in `branding/app.ico`. The v1.0.2 download in this private repository embeds the original executable icon and the Russian item dictionary. Both builds extract the original UI and item icons from the installed game and read the Courageous background from the intro movie. The editor uses Steam's local logo cache when available. The generated artwork stays in `%LOCALAPPDATA%\ColdSteelSaveEditor`. The README screenshot shows a demo inventory with artwork loaded from the installed game.
+The standard CI build uses the editor's airship icon in `branding/app.ico`. The v1.0.3 download in this private repository embeds the original executable icon and the Russian item dictionary. Both builds extract the original UI and item icons from the installed game and read the Courageous background from the intro movie. The editor uses Steam's local logo cache when available. The generated artwork stays in `%LOCALAPPDATA%\ColdSteelSaveEditor`. The README screenshot shows a demo inventory with artwork loaded from the installed game.
 
 | Local file | Source |
 | --- | --- |
@@ -8,7 +8,7 @@ The standard CI build uses the editor's airship icon in `branding/app.ico`. The 
 | `logo.png` | Steam library cache for app `748490`. |
 | `app.ico` | Icon resources of the locally installed `ed8_2_PC_US.exe`. |
 | Item, menu, master quartz, and fish atlases, crest, arrows, and individual item art | Original game packages. The editor extracts these automatically during a catalog scan. `python game_art.py <game directory>` can also extract them into `assets` for a local build. |
-| `item-text.json` | Local Russian dictionary covering all 1,205 item names and selected descriptions, including matched entries from the Cold Steel I project. |
+| `item-text.json` | Local Russian dictionary covering all 1,205 catalog names and descriptions and 75 distinct master quartz effect titles. Descriptions use matched Cold Steel I entries, manual translations, and offline Argos Translate output with terminology corrections. The model is used during translation only. |
 
 The MIT license applies to the editor source. Public redistribution rights for the extracted game artwork have not been established. [Gameplay video guidelines](https://www.falcom.co.jp/guideline-en) · [Falcom licensing FAQ](https://www.falcom.co.jp/license/faq)
 

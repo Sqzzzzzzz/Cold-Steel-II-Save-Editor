@@ -1274,7 +1274,7 @@ class MainWindow(QMainWindow):
             labels=STAT_NAMES_RU if self.language=='ru' else STAT_NAMES
             stats=' · '.join(f'{label} {value:+d}{"%" if name in ("ACC","EVA") else ""}'
                              for name,label,value in zip(STAT_NAMES,labels,item.stats) if value)
-        effects=self.core.last_scan.master_effects.get(iid,()) if self.core.last_scan else ()
+        effects=self.core.master_effect_titles(iid)
         master_text=''
         if effects:
             master_text=self.msg('Эффекты по мере роста уровня','Effects unlocked by level')+'\n'+'\n'.join(effects)

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.3
+
+- Complete Russian catalog descriptions, including fishing entries and DLC packs.
+- Translate master quartz effect titles while preserving the original English text.
+- Update the README screenshot with a Russian equipment description.
+
 ## 1.0.2
 
 - Add a local single-executable build with the original Windows icon and Russian item-name dictionary.

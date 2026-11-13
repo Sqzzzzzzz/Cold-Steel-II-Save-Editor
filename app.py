@@ -9,7 +9,7 @@ from PySide6.QtCore import QCoreApplication, QSettings, QTimer
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
-from qt_backend import BUNDLED_ITEM_TEXT, EditorCore
+from qt_backend import BUNDLED_ITEM_TEXT, EditorCore, uses_language
 from game_art import ASSETS
 from qt_window import APP_NAME, VERSION, MainWindow
 from save_storage import SteamSaveStorage
@@ -118,6 +118,15 @@ def main() -> int:
                         ready &= model.index_for_id(0).data() == expected
                         if core.quantity(0):
                             ready &= window.inv_table.model().index_for_id(0).data() == expected
+                        if args.smoke_test_local_art:
+                            ready &= not core.missing_translations()
+                            effects = core.master_effect_titles(3200)
+                            ready &= bool(effects) and all(uses_language(text, language) for text in effects)
+                            window.cat_table.selectRow(model.index_for_id(3200).row())
+                            ready &= core.details_text(3200) in window.description.toPlainText()
+                            ready &= all(text in window.description.toPlainText() for text in effects)
+                            if item_id is not None:
+                                window.cat_table.selectRow(model.index_for_id(item_id).row())
                     if item_id is not None:
                         count = core.quantity(item_id)
                         window.delete_btn.click()

@@ -6,7 +6,7 @@
 
 An offline inventory editor for **The Legend of Heroes: Trails of Cold Steel II** on Steam. It reads item data from the installed game and changes only the active inventory in a verified PC save.
 
-![Cold Steel II Save Editor v1.0.2 with the Courageous background, original item icons, and Russian catalog](docs/editor.jpg)
+![Cold Steel II Save Editor v1.0.3 showing the Russian catalog and a translated item description](docs/editor.jpg)
 
 ## Features
 
@@ -14,7 +14,7 @@ An offline inventory editor for **The Legend of Heroes: Trails of Cold Steel II*
 - Add, remove, or change quantities for individual items or selections. Review, undo, or reset edits before saving.
 - View equipment stats, master quartz abilities, and read-only fishing and DLC references.
 - Compare inventories, export a CSV, save a separate `.dat`, or overwrite a slot with a verified backup.
-- Switch the interface and item names between English and Russian.
+- Switch the interface, item names and descriptions, and master quartz effects between English and Russian.
 
 ## Requirements
 
@@ -61,7 +61,7 @@ To undo a write, open the edited slot and choose **Tools → Restore Backup**. R
 
 - Only the tested Steam PC format is supported. A separate export does not register a new slot in the game.
 - Service records are hidden. Quest items, recipes, Black Records, and equipped master quartz or ARCUS covers are protected. Editing DLC items requires their presence in the original slot.
-- The release includes Russian names for all 1,205 catalog entries. Descriptions and other text without a Russian translation use the game's English text.
+- The release includes Russian names and descriptions for all 1,205 catalog entries verified against Steam build 3518949. English uses the original game text.
 - The Windows EXE is unsigned. The themed build was tested in-game by loading an isolated copy and confirming **Tear Balm ×73** in the inventory and in game-generated autosaves.
 
 ## Build & Test

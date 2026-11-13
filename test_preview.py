@@ -77,26 +77,35 @@ class PreviewTests(TestCase):
             self.assertEqual(core.item_name(1), "Item #1")
             self.assertEqual(core.details_text(1), "")
 
-    def test_standalone_item_dictionary_changes_russian_names_only(self):
+    def test_standalone_dictionary_localizes_russian_text_and_preserves_english(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
             table = root / ITEM_TABLE
             table.parent.mkdir(parents=True)
             table.touch()
             dictionary = root / "item-text.json"
-            dictionary.write_text('{"ru":{"0":["Зелье «Тиа»","Восполняет ОЗ"]}}', encoding="utf-8")
+            dictionary.write_text(
+                '{"ru":{"0":["Зелье «Тиа»","Восполняет ОЗ"]},'
+                '"ru_master_effects":{"Evasion up":"Повышает уклонение"}}',
+                encoding="utf-8",
+            )
             items = {0: CatalogItem("Tear Balm", "Restores HP", "items", 99, 0x81, 0)}
             profile = QSettings(str(root / "settings.ini"), QSettings.Format.IniFormat)
             core = EditorCore(profile=profile)
             with (patch("qt_backend.BUNDLED_ITEM_TEXT", dictionary),
                   patch("qt_backend.ITEM_TEXT", root / "missing.json"),
-                  patch("qt_backend.read_catalog", return_value=items)):
+                  patch("qt_backend.read_catalog", return_value=items),
+                  patch("qt_backend.MASTER_TABLE", ITEM_TABLE),
+                  patch("qt_backend.read_master_quartz_effects",
+                        return_value={3200: ("Evasion up", "Accuracy up")})):
                 core.apply_scan_result(scan_game_tables(root))
             for language, name, description in (("ru", "Зелье «Тиа»", "Восполняет ОЗ"),
                                                 ("en", "Tear Balm", "Restores HP"),
                                                 ("ru", "Зелье «Тиа»", "Восполняет ОЗ")):
                 core.set_language(language)
                 self.assertEqual((core.item_name(0), core.details_text(0)), (name, description))
+                first_effect = "Повышает уклонение" if language == "ru" else "Evasion up"
+                self.assertEqual(core.master_effect_titles(3200), (first_effect, "Accuracy up"))
 
     def test_invalid_profile_fields_are_discarded(self):
         with TemporaryDirectory() as directory:
@@ -279,9 +288,13 @@ class CleanWindowTests(TestCase):
                 model = window.cat_table.model()
                 window.cat_table.selectRow(0)
                 self.assertEqual(model.index(0, 0).data(), "Пробное зелье")
+                self.assertIn("Восстанавливает здоровье", window.description.toPlainText())
                 window.lang.setCurrentIndex(1)
                 self.assertEqual(model.index(0, 0).data(), "Sample Potion")
                 self.assertEqual(window.item_name.accessibleName(), "Sample Potion")
+                self.assertIn("Restores health", window.description.toPlainText())
+                window.lang.setCurrentIndex(0)
+                self.assertIn("Восстанавливает здоровье", window.description.toPlainText())
                 window.cat_search.setText("unmatched")
                 window.update_tables("catalog")
                 self.assertEqual(model.rowCount(), 0)
