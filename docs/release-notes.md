@@ -15,7 +15,7 @@ An offline Windows inventory editor for the Steam PC version of *The Legend of H
 
 - Russian descriptions cover all 1,205 catalog entries, including fish and DLC packs. The remaining descriptions were translated with offline machine assistance and terminology corrections.
 - All 75 distinct master quartz effect titles are available in Russian. English continues to use the original Steam text.
-- The new README screenshot shows a translated equipment description. The Windows EXE uses the original Steam game icon.
+- The Windows EXE uses the original Steam game icon.
 
 ## Installation
 
