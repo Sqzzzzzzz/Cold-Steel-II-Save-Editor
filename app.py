@@ -26,6 +26,7 @@ def main() -> int:
     parser.add_argument("--smoke-test", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--smoke-test-clean", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--smoke-test-portable", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--smoke-test-local-art", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     app = QApplication(sys.argv[:1])
@@ -36,7 +37,7 @@ def main() -> int:
     for role in (QPalette.ColorRole.ButtonText, QPalette.ColorRole.Text, QPalette.ColorRole.WindowText):
         palette.setColor(role, QColor("#f2e9e8"))
     app.setPalette(palette)
-    smoke = args.smoke_test or args.smoke_test_clean or args.smoke_test_portable
+    smoke = args.smoke_test or args.smoke_test_clean or args.smoke_test_portable or args.smoke_test_local_art
     temporary = TemporaryDirectory(prefix="cs2-smoke-") if smoke else None
     profile = (
         QSettings(str(Path(temporary.name) / "profile.ini"), QSettings.Format.IniFormat)
@@ -72,19 +73,21 @@ def main() -> int:
     elif not args.demo and not args.smoke_test_clean:
         QTimer.singleShot(0, window.open_latest_at_startup)
 
-    if args.smoke_test or args.smoke_test_portable:
+    if args.smoke_test or args.smoke_test_portable or args.smoke_test_local_art:
         poll = QTimer(window)
 
         def check_window():
             if (not window.core.catalog or window.scan_thread is not None
                     or ((args.save or args.latest) and window.core.source is None)):
                 return
+            if args.smoke_test_local_art and (window.art.directory == ASSETS or window.canvas.texture.isNull()):
+                return
             poll.stop()
             window.navigate_section("catalog")
             ready = (
                 window.isVisible() and window.cat_table.model().rowCount() > 0
                 and not window.windowIcon().isNull()
-                and (args.smoke_test_portable or (
+                and (args.smoke_test_portable or args.smoke_test_local_art or (
                     ASSETS.is_dir() and not window.canvas.texture.isNull()
                     and not window.logo_art.isNull()
                     and not window._icon(0).isNull()
@@ -92,6 +95,9 @@ def main() -> int:
                 and bool(window.core.item_name(0))
                 and (args.save is None or window.core.source == args.save.resolve())
             )
+            if args.smoke_test_local_art:
+                ready &= (not ASSETS.exists() and not window.emblem_art.isNull() and not window._icon(0).isNull()
+                          and not window.navigation['inventory'].icon().isNull())
             if ready and args.save is not None:
                 model = window.cat_table.model()
                 item_id = next((key for key in core.inventory_view() if core.can_delete(key)), None)

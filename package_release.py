@@ -20,6 +20,7 @@ DOCUMENTS = (
     'third_party/README.md', 'third_party/Python-LICENSE.txt',
     'third_party/GPL-3.0-only.txt', 'third_party/LGPL-3.0-only.txt',
     'third_party/PyInstaller-COPYING.txt',
+    'third_party/SenPatcher-MIT.txt', 'third_party/LGPL-2.1-or-later.txt',
 )
 RUNTIME_FILE = re.compile(
     r'_internal/(?:[\w.+-]+\.(?:pyd|dll)|(?:shiboken6|PySide6)/[\w.+-]+\.(?:pyd|dll)'
@@ -53,7 +54,8 @@ def validate_onefile(executable: Path):
 
     app = CArchiveReader(str(executable))
     members = {name.replace('\\', '/'): name for name in app.toc}
-    required = {'branding/app.ico', 'PySide6/translations/qtbase_ru.qm', 'LICENSE'}
+    required = {'branding/app.ico', 'PySide6/translations/qtbase_ru.qm', 'LICENSE',
+                'PySide6/plugins/multimedia/ffmpegmediaplugin.dll', 'PySide6/avcodec-61.dll'}
     required.update(f'{NOTICES}/{Path(name).name}' for name in DOCUMENTS if name.startswith(f'{NOTICES}/'))
     if not required <= members.keys():
         raise ValueError(f'Missing embedded resources: {", ".join(sorted(required - members.keys()))}')

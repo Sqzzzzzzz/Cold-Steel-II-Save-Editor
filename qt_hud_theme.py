@@ -1,7 +1,5 @@
 """Single Cold Steel II glass HUD theme for the native Qt editor."""
 
-from game_art import ASSETS
-
 HUD_STYLESHEET = r'''
 QWidget {color:#FFEAED;font-family:'Segoe UI','DejaVu Sans';font-size:14px;font-weight:400;}
 QWidget#canvas,QFrame,QLabel,QWidget#detailInner,QWidget#toolsInner {background:transparent;border:0;}
@@ -121,12 +119,14 @@ QProgressBar#setupProgress {background:#2A2226;border:1px solid #7E4449;border-r
 QProgressBar#setupProgress::chunk {background:#D14E59;border:0;border-radius:1px;}
 '''
 
-ARROW_UP = ASSETS / 'arrow-up.png'
-ARROW_DOWN = ASSETS / 'arrow-down.png'
-if ARROW_UP.is_file() and ARROW_DOWN.is_file():
-    HUD_STYLESHEET += r'''
+def hud_stylesheet(art_dir):
+    up = art_dir / 'arrow-up.png'
+    down = art_dir / 'arrow-down.png'
+    if not up.is_file() or not down.is_file():
+        return HUD_STYLESHEET
+    return HUD_STYLESHEET + r'''
 QSpinBox::up-button {subcontrol-origin:border;subcontrol-position:top right;width:17px;border:1px solid #949FAE;background:#333B4A;border-top-right-radius:2px;}
 QSpinBox::down-button {subcontrol-origin:border;subcontrol-position:bottom right;width:17px;border:1px solid #949FAE;background:#333B4A;border-bottom-right-radius:2px;}
 QSpinBox::up-arrow, QScrollBar::up-arrow:vertical {image:url("@UP@");width:8px;height:6px;}
 QSpinBox::down-arrow, QScrollBar::down-arrow:vertical {image:url("@DOWN@");width:8px;height:6px;}
-'''.replace('@UP@', ARROW_UP.as_posix()).replace('@DOWN@', ARROW_DOWN.as_posix())
+'''.replace('@UP@', up.as_posix()).replace('@DOWN@', down.as_posix())

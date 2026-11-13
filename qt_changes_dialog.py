@@ -71,7 +71,7 @@ class ChangesDialog(QDialog):
         self.proceed=None
         if save_mode:
             self.proceed=HudButton(t('Сохранить копию…','Save a copy…') if save_mode=='copy' else t('Записать с резервной копией','Save with a backup'))
-            self.proceed.setProperty('role','primary');self.proceed.setIcon(hud_icon('check'))
+            self.proceed.setProperty('role','primary');self.proceed.setIcon(hud_icon(window.art,'check'))
             self.proceed.setFixedSize(240,46)
             self.proceed.setEnabled(bool(source and (save_mode == 'copy' or source.suffix.lower() == '.dat')))
             self.proceed.clicked.connect(self.accept)

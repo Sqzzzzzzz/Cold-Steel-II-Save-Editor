@@ -14,7 +14,7 @@ from pathlib import Path
 from operator import attrgetter
 
 from PySide6.QtCore import Qt, QTimer, QSize, QRectF, QRect, QPoint, QPointF, Signal, Slot, QObject, QThread, QSignalBlocker, QUrl, QEvent, QItemSelection, QItemSelectionModel, QLibraryInfo, QTranslator
-from PySide6.QtGui import QColor, QPainter, QPen, QFont, QFontMetrics, QPolygonF, QPixmap, QIcon, QPainterPath, QLinearGradient, QBrush, QRadialGradient, QDesktopServices, QPixmapCache
+from PySide6.QtGui import QColor, QPainter, QPen, QFont, QFontMetrics, QPolygonF, QPixmap, QIcon, QPainterPath, QLinearGradient, QBrush, QRadialGradient, QDesktopServices, QPixmapCache, QRegion
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QLabel, QPushButton, QLineEdit,
     QSpinBox, QComboBox, QCheckBox, QTreeWidget, QTreeWidgetItem, QTableView,
@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 
 from categories import GROUPS, CATEGORY_NAMES, CATEGORY_TO_GROUP, category_of, item_in_category
 from qt_backend import EditorCore, find_game_install, read_english_catalog, scan_game_tables, write_csv
-from game_art import ASSETS, shared_game_art
+from game_art import ASSETS, INTRO_MOVIE, BackdropFrame, GameArt, prepare_art, steam_logo
 from edit_changes import EditChanges
 from qt_inventory_model import InventoryModel, ItemRow
 from qt_first_launch import FirstLaunchPage
@@ -104,6 +104,7 @@ class HudSectionHeader(QWidget):
 class ScanWorker(QObject):
     stage=Signal(str)
     result=Signal(object)
+    art=Signal(object,object)
     error=Signal(object)
     finished=Signal()
     def __init__(self,controller,path=None):
@@ -116,6 +117,10 @@ class ScanWorker(QObject):
             if root is None: raise FileNotFoundError('Game directory not found')
             self.stage.emit('reading')
             self.result.emit(scan_game_tables(root))
+            try:
+                self.art.emit(root,prepare_art(root))
+            except (OSError, ValueError) as exc:
+                self.art.emit(root,exc)
         except Exception as exc:self.error.emit(exc)
         finally:self.finished.emit()
 
@@ -125,7 +130,10 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.core=core if core is not None else EditorCore(storage=SteamSaveStorage())
         self.setWindowTitle(f'{APP_NAME} v{VERSION}')
-        self.art = shared_game_art()
+        self.art = GameArt()
+        self._backdrop_frame=None
+        self._art_labels=[]
+        self._search_icons=[]
         icon=ASSETS / 'app.ico'
         self.setWindowIcon(QIcon(str(icon if icon.is_file() else ASSETS.parent / 'branding/app.ico')))
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
@@ -192,8 +200,8 @@ class MainWindow(QMainWindow):
         self.initial_load_timer.start(0)
 
     def _qt_setup(self):
-        from qt_hud_theme import HUD_STYLESHEET
-        self.setStyleSheet(HUD_STYLESHEET)
+        from qt_hud_theme import hud_stylesheet
+        self.setStyleSheet(hud_stylesheet(self.art.directory))
 
     def _toolbar_icons(self):
         """Provide supported Qt icons instead of missing-font square glyphs."""
@@ -203,7 +211,7 @@ class MainWindow(QMainWindow):
             (self.btn_savecopy,'save'),
         )
         for btn,kind in icons:
-            btn.setIcon(hud_icon(kind,64))
+            btn.setIcon(hud_icon(self.art,kind))
             btn.setIconSize(QSize(31,31))
 
 
@@ -231,16 +239,10 @@ class MainWindow(QMainWindow):
         self.subtitle.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         branding.addWidget(self.title);branding.addWidget(self.subtitle)
         hl.addLayout(branding,1)
-        self.logo_art = QPixmap(str(ASSETS / 'logo.png'))
-        if not self.logo_art.isNull():
-            from PySide6.QtGui import QRegion
-            visible = QRegion(self.logo_art.mask()).boundingRect()
-            if not visible.isEmpty():
-                self.logo_art = self.logo_art.copy(visible)
-            self.logo = glass_label()
-            self.logo.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-            hl.addWidget(self.logo)
-        self._refresh_branding_art()
+        self.logo = glass_label()
+        self.logo.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        hl.addWidget(self.logo)
+        self._set_logo(QPixmap(str(ASSETS / 'logo.png')))
         controls=QVBoxLayout();controls.setSpacing(6)
         window_controls=QHBoxLayout();window_controls.setSpacing(1)
         self.window_buttons={}
@@ -272,7 +274,7 @@ class MainWindow(QMainWindow):
         for btn in (self.btn_latest,self.btn_open,self.btn_compare):buttons.addWidget(btn)
         buttons.addStretch(1)
         for btn in (self.btn_overwrite,self.btn_savecopy):buttons.addWidget(btn)
-        self._toolbar_icons();bar.addLayout(buttons)
+        bar.addLayout(buttons)
         status=QHBoxLayout();status.setContentsMargins(8,0,4,0);status.setSpacing(8)
         self.save_line=ElideLabel();self.save_line.setProperty('role','muted')
         self.save_line.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred)
@@ -290,7 +292,7 @@ class MainWindow(QMainWindow):
         self.navigation={}
         for key in ('inventory','catalog','tools'):
             b=add_button('',role='nav');b.setCheckable(True);b.setFixedHeight(67)
-            b.setIcon(hud_icon(key,38));b.setIconSize(QSize(38,38))
+            b.setIconSize(QSize(38,38))
             b.clicked.connect(lambda checked=False,k=key:self.navigate_section(k))
             self.navigation[key]=b;rl.addWidget(b)
         rl.addStretch(1)
@@ -303,7 +305,7 @@ class MainWindow(QMainWindow):
         self.rail_state=glass_label('','muted',10)
         for widget,icon in [(self.rail_file,'save'),(self.rail_folder,'open'),(self.rail_date,'clock'),(self.rail_state,'check')]:
             row=QHBoxLayout();row.setContentsMargins(12,0,0,0);row.setSpacing(10)
-            pict=QLabel();pict.setPixmap(hud_icon(icon,22).pixmap(22,22));pict.setFixedSize(23,28)
+            pict=QLabel();pict.setFixedSize(23,28);self._art_labels.append((pict,icon))
             row.addWidget(pict);row.addWidget(widget,1);rl.addLayout(row)
         body.addWidget(rail)
         center=QWidget();self.center_shell=center;cl=QVBoxLayout(center)
@@ -321,7 +323,7 @@ class MainWindow(QMainWindow):
         self.pages=QStackedWidget();pl.addWidget(self.pages,1);cl.addWidget(center_panel,1)
         self.catpage=self._make_catalog();self.invpage=self._make_inventory();self.toolspage=self._make_tools()
         for page in (self.catpage,self.invpage,self.toolspage):self.pages.addWidget(page)
-        self.startup_page=FirstLaunchPage()
+        self.startup_page=FirstLaunchPage(self.art)
         self.startup_page.find_game.connect(lambda:self.scan_game(None))
         self.startup_page.choose_game.connect(self.choose_game)
         self.startup_page.open_save.connect(self.open_save_from_startup)
@@ -347,7 +349,7 @@ class MainWindow(QMainWindow):
             self.msg('Щёлкните правой кнопкой по полю количества, чтобы выбрать значение.',
                      'Right-click the quantity field to choose a preset.'),
         ],count=False),'window')
-        self.help_button.setIcon(hud_icon('help'));self.help_button.setFixedSize(32,32)
+        self.help_button.setIcon(hud_icon(self.art,'help'));self.help_button.setFixedSize(32,32)
         self.help_button.setToolTip('Справка');fl.addWidget(self.help_button)
         entire.addWidget(self.footer_row)
         self.notice=QLabel(canvas);self.notice.setObjectName('toastNotice')
@@ -356,6 +358,20 @@ class MainWindow(QMainWindow):
         self.notice_timer=QTimer(self);self.notice_timer.setSingleShot(True)
         self.notice_timer.timeout.connect(self.notice.hide)
         self._notice_text=None
+        self._refresh_hud_icons()
+
+    def _refresh_hud_icons(self):
+        for key,button in self.navigation.items():
+            button.setIcon(hud_icon(self.art,key))
+        for label,kind in self._art_labels:
+            label.setPixmap(hud_icon(self.art,kind).pixmap(22,22))
+        for button,kind in ((self.apply_btn,'check'),(self.delete_btn,'remove'),(self.undo_btn,'undo'),
+                            (self.reset_btn,'reset'),(self.del_bulk,'remove')):
+            button.setIcon(hud_icon(self.art,kind))
+        for action in self._search_icons:
+            action.setIcon(hud_icon(self.art,'search'))
+        self.startup_page.set_art(self.art)
+        self._toolbar_icons()
 
     def toggle_maximized(self):
         self.showNormal() if self.isMaximized() else self.showMaximized()
@@ -436,7 +452,7 @@ class MainWindow(QMainWindow):
 
     def _searchbar(self,kind):
         inp=QLineEdit()
-        inp.addAction(hud_icon('search',22),QLineEdit.ActionPosition.LeadingPosition)
+        self._search_icons.append(inp.addAction(hud_icon(self.art,'search'),QLineEdit.ActionPosition.LeadingPosition))
         inp.setClearButtonEnabled(True)
         inp.setFixedHeight(37)
         timer=QTimer(inp);timer.setSingleShot(True);timer.setInterval(100)
@@ -510,7 +526,7 @@ class MainWindow(QMainWindow):
         self.inv_bulk_bar=QWidget();bulk=QHBoxLayout(self.inv_bulk_bar);bulk.setContentsMargins(0,0,0,0)
         self.inv_selection_info=glass_label('','muted',10);bulk.addWidget(self.inv_selection_info,1)
         self.del_bulk=add_button('Удалить выбранные',self.delete_bulk,'danger');self.del_bulk.setFixedHeight(39)
-        self.del_bulk.setIcon(hud_icon('remove',20));bulk.addWidget(self.del_bulk);l.addWidget(self.inv_bulk_bar)
+        bulk.addWidget(self.del_bulk);l.addWidget(self.inv_bulk_bar)
         self.inv_bulk_bar.hide();row.addLayout(l,1);return page
 
     def _make_tools(self):
@@ -606,11 +622,10 @@ class MainWindow(QMainWindow):
         separator()
         self.apply_btn=add_button('Применить количество',self.apply_single,'primary')
         self.delete_btn=add_button('Удалить предмет из сохранения',self.delete_single,'danger')
-        self.apply_btn.setIcon(hud_icon('check'));self.delete_btn.setIcon(hud_icon('remove'))
         for b in (self.apply_btn,self.delete_btn):b.setFixedHeight(48);l.addWidget(b)
         secondary=QHBoxLayout();secondary.setSpacing(3)
-        self.undo_btn=add_button('Отменить',self.undo);self.undo_btn.setIcon(hud_icon('undo'))
-        self.reset_btn=add_button('Сбросить правки',self.reset);self.reset_btn.setIcon(hud_icon('reset'))
+        self.undo_btn=add_button('Отменить',self.undo)
+        self.reset_btn=add_button('Сбросить правки',self.reset)
         for b in (self.undo_btn,self.reset_btn):b.setFixedHeight(48);secondary.addWidget(b)
         l.addLayout(secondary);separator()
         self.description_title=glass_label('Описание и характеристики','descriptionTitle',12);l.addWidget(self.description_title)
@@ -862,9 +877,9 @@ class MainWindow(QMainWindow):
                 category=key if key in CATEGORY_NAMES else GROUPS[key][1][0][0] if key in GROUPS else None
                 if key == 'quartz_master':
                     force = self.core.native.get(3200)
-                    self._category_icons[key] = self.art.item_icon(3200, force) if force else hud_icon('quartz_master', 25)
+                    self._category_icons[key] = self.art.item_icon(3200, force) if force else hud_icon(self.art,'quartz_master')
                 else:
-                    self._category_icons[key] = hud_icon(category or key, 25)
+                    self._category_icons[key] = hud_icon(self.art,category or key)
             icon=self._category_icons[key]
             if item.icon(0).cacheKey()!=icon.cacheKey():item.setIcon(0,icon)
             for column,text in enumerate((title,str(count))):
@@ -978,6 +993,15 @@ class MainWindow(QMainWindow):
                               Qt.TransformationMode.SmoothTransformation)
             pixmap.setDevicePixelRatio(dpr)
             label.setPixmap(pixmap)
+
+    def _set_logo(self,picture):
+        self.logo_art=picture
+        if not picture.isNull():
+            visible=QRegion(picture.mask()).boundingRect()
+            if not visible.isEmpty():
+                self.logo_art=picture.copy(visible)
+        self.logo.setVisible(not picture.isNull())
+        self._refresh_branding_art()
 
     def toggle_quick_favorites(self,kind):
         if kind=='catalog':
@@ -1608,6 +1632,7 @@ class MainWindow(QMainWindow):
         self.scan_thread.started.connect(self.scan_worker.run)
         self.scan_worker.stage.connect(self.on_scan_stage)
         self.scan_worker.result.connect(self.on_scan_result)
+        self.scan_worker.art.connect(self.on_art_ready)
         self.scan_worker.error.connect(self.on_scan_error)
         self.scan_worker.finished.connect(self.scan_thread.quit)
         self.scan_worker.finished.connect(self.scan_worker.deleteLater)
@@ -1639,6 +1664,40 @@ class MainWindow(QMainWindow):
         n=len(result.files);m=len(result.items)
         return self.msg(f'Сканировано таблиц: {n}, предметов: {m}',
                         f'Scanned {n} '+('table' if n==1 else 'tables')+f'; {m} '+('item' if m==1 else 'items'))
+
+    @Slot(object,object)
+    def on_art_ready(self,root,result):
+        if self._close_after_work:return
+        if isinstance(result,Exception):
+            if (root / INTRO_MOVIE).is_file():
+                self.show_toast('Не удалось загрузить игровые иконки.','Game icons could not be loaded.')
+            return
+        if result==ASSETS:return
+        self.art=GameArt(result)
+        self._qt_setup()
+        self._refresh_hud_icons()
+        self._icon_pixmaps.clear();self._category_icons.clear()
+        self.emblem_art=QPixmap(str(result / 'thors.png'))
+        if self.emblem_art.isNull():self.crest.setText('CS II')
+        self._set_logo(steam_logo(root))
+        self.refresh_catalog()
+        for table in (self.cat_table,self.inv_table):table.model().refresh_icons()
+        if self._backdrop_frame is not None:self._backdrop_frame.stop()
+        destination=result / 'courageous-backdrop.jpg'
+        self.canvas.set_texture(QPixmap(str(destination)))
+        movie=root / INTRO_MOVIE
+        if self.canvas.texture.isNull() and movie.is_file():
+            self._backdrop_frame=BackdropFrame(movie,destination,self)
+            self._backdrop_frame.ready.connect(self._apply_backdrop)
+            self._backdrop_frame.finished.connect(self._finish_backdrop)
+
+    @Slot(object)
+    def _apply_backdrop(self,image):
+        self.canvas.set_texture(QPixmap.fromImage(image))
+
+    @Slot()
+    def _finish_backdrop(self):
+        self._backdrop_frame=None
 
     @Slot(object)
     def on_scan_error(self,error,silent=False):
@@ -1832,6 +1891,7 @@ class MainWindow(QMainWindow):
             return
         self._close_after_work=False
         if not self.confirm_dirty():event.ignore();return
+        if self._backdrop_frame is not None:self._backdrop_frame.stop()
         self.initial_load_timer.stop()
         self._file_pool.shutdown(wait=False)
         QApplication.instance().removeTranslator(self._qt_translation)

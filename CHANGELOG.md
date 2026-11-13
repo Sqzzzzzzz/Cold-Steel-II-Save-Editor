@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1
+
+- Restore the Courageous background, Thors crest, and original item and interface icons by loading them from the local Steam installation.
+- Give the standalone Windows EXE a new airship icon.
+
 ## 1.0.0
 
 - Added a Windows inventory editor for Trails of Cold Steel II Steam saves with English and Russian controls.

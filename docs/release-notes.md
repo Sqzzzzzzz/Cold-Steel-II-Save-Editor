@@ -1,4 +1,4 @@
-# Cold Steel II Save Editor v1.0.0
+# Cold Steel II Save Editor v1.0.1
 
 ## Overview
 
@@ -13,7 +13,7 @@ An offline Windows inventory editor for the Steam PC version of *The Legend of H
 
 ## Improvements
 
-The local build retains the original layout, colors, and Courageous background. The release package uses the same layout with built-in styling and original editor branding. The catalog reads each DLC table once and indexes categories as it loads. Qt skips unchanged rows and loads special item art on demand.
+The standalone Windows executable has a new airship icon. When the editor scans the installed game, it loads the Courageous background, the Thors crest, and the original item and interface icons. These images are cached on your computer.
 
 ## Bug Fixes
 
@@ -39,13 +39,13 @@ Close the game before overwriting a slot. The editor creates and verifies a back
 
 ## Downloads
 
-- `Cold-Steel-II-Save-Editor-v1.0.0-Windows.zip` contains only `Cold_Steel_II_Save_Editor.exe`.
+- `Cold-Steel-II-Save-Editor-v1.0.1-Windows.zip` contains only `Cold_Steel_II_Save_Editor.exe`.
 - `SHA256SUMS.txt` is a separate release download with the SHA-256 checksum for the ZIP.
 
-The executable uses Qt and Qt for Python under LGPLv3. The project source and the instructions for using a modified runtime are available alongside this release. [Third-party notices and rebuild instructions](https://github.com/Sqzzzzzzz/Cold-Steel-II-Save-Editor/blob/v1.0.0/third_party/README.md)
+The executable uses Qt and Qt for Python under LGPLv3 and FFmpeg under LGPLv2.1 or later. [Third-party notices, sources and rebuild instructions](https://github.com/Sqzzzzzzz/Cold-Steel-II-Save-Editor/blob/v1.0.1/third_party/README.md)
 
 ## Known Limitations
 
 - Verified against Steam PC 1.4.1, build 3518949, version-8 saves. Other editions are unverified.
 - Exporting a `.dat` does not register it in the game's slot list. Protected quest and equipment entries have editing restrictions. Restoring a DLC item absent from the current slot requires opening and exporting the original backup as a separate file.
-- The public package excludes game artwork and the local item translation dictionary. Untranslated text is read from the installed game.
+- Game artwork loads from the full Steam installation. The logo depends on Steam's local cache, and untranslated item text comes from the installed game.

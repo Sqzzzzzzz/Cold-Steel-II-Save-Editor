@@ -13,8 +13,9 @@ class FirstLaunchPage(QScrollArea):
     open_save=Signal()
     browse=Signal()
 
-    def __init__(self,parent=None):
+    def __init__(self,art,parent=None):
         super().__init__(parent)
+        self.step_icons=[]
         self.setObjectName('firstLaunchScroller');self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -55,7 +56,7 @@ class FirstLaunchPage(QScrollArea):
         actions=QHBoxLayout();actions.setSpacing(8)
         self.auto_button=HudButton();self.auto_button.setProperty('role','primary')
         self.folder_button=HudButton();self.open_button=HudButton();self.open_button.setProperty('role','primary')
-        self.open_button.setIcon(hud_icon('open',36));self.open_button.setIconSize(QSize(28,28))
+        self.open_button.setIconSize(QSize(28,28))
         for button in (self.auto_button,self.folder_button,self.open_button):button.setFixedHeight(47)
         self.auto_button.clicked.connect(self.find_game.emit);self.folder_button.clicked.connect(self.choose_game.emit)
         self.open_button.clicked.connect(self.open_save.emit)
@@ -69,6 +70,7 @@ class FirstLaunchPage(QScrollArea):
         layout.addLayout(foot)
         outer.addWidget(self.content,0,Qt.AlignmentFlag.AlignHCenter)
         outer.addStretch(1)
+        self.set_art(art)
 
     def resizeEvent(self,event):
         super().resizeEvent(event);self._fit_content()
@@ -86,9 +88,15 @@ class FirstLaunchPage(QScrollArea):
         row=QHBoxLayout();row.setSpacing(10)
         badge=QLabel(number);badge.setObjectName('setupStep');badge.setFixedSize(33,31)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter);row.addWidget(badge)
-        icon=QLabel();icon.setPixmap(hud_icon(kind,36).pixmap(30,30));icon.setFixedSize(31,31);row.addWidget(icon)
+        icon=QLabel();icon.setFixedSize(31,31);row.addWidget(icon)
+        self.step_icons.append((icon,kind))
         title=QLabel();title.setObjectName('setupCardTitle');row.addWidget(title,1)
         layout.addLayout(row);return title
+
+    def set_art(self,art):
+        self.open_button.setIcon(hud_icon(art,'open'))
+        for icon,kind in self.step_icons:
+            icon.setPixmap(hud_icon(art,kind).pixmap(30,30))
 
     def render_state(self,*,language,catalog_count,demo=True,save_name='',busy=False,stage='',error='',error_details='',warning_count=0):
         t=lambda ru,en:ru if language=='ru' else en

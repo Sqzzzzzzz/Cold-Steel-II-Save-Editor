@@ -1,18 +1,23 @@
 """Cache original Cold Steel II icons and import them from a local PC installation."""
 
 import argparse
-from functools import cache, cached_property
+from functools import cached_property
+from hashlib import sha256
+import os
 from pathlib import Path
-import subprocess
+from struct import Struct, unpack_from
 from tempfile import TemporaryDirectory
 
-from PySide6.QtCore import QPoint, QRect, QRectF, Qt
+from PySide6.QtCore import QIODevice, QObject, QPoint, QRect, QRectF, QSaveFile, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import QIcon, QImage, QPainter, QPainterPath, QPixmap, QTransform
+from PySide6.QtMultimedia import QMediaPlayer, QVideoSink
 
 from item_catalog import CatalogItem
 
 
 ASSETS = Path(__file__).resolve().parent / "assets"
+ART_CACHE = Path(os.environ.get("LOCALAPPDATA", Path.home() / ".cache")) / "ColdSteelSaveEditor" / "CS2-art-v1"
+INTRO_MOVIE = Path("data/movie/ed82_OP.avi")
 SECONDARY_TILE = 0x100
 FISH_TILE_START = 0x180
 BLADE_CARD_TILE = 0x198
@@ -48,26 +53,27 @@ ITEM_TILES = {
 
 
 class GameArt:
-    def __init__(self):
-        self.items = QPixmap(str(ASSETS / "item-atlas.png"))
-        self.secondary = QPixmap(str(ASSETS / "secondary-atlas.png"))
-        self.masters = QPixmap(str(ASSETS / "master-atlas.png"))
-        self.menu = QPixmap(str(ASSETS / "menu-atlas.png"))
+    def __init__(self, directory=ASSETS):
+        self.directory = directory
+        self.items = QPixmap(str(directory / "item-atlas.png"))
+        self.secondary = QPixmap(str(directory / "secondary-atlas.png"))
+        self.masters = QPixmap(str(directory / "master-atlas.png"))
+        self.menu = QPixmap(str(directory / "menu-atlas.png"))
         self.tiles = {}
         self.tile_icons = {}
         self.menu_icons = {}
 
     @cached_property
     def fish(self):
-        return QPixmap(str(ASSETS / "fish-art.png"))
+        return QPixmap(str(self.directory / "fish-art.png"))
 
     @cached_property
     def blade(self):
-        return QPixmap(str(ASSETS / "blade-ii.png"))
+        return QPixmap(str(self.directory / "blade-ii.png"))
 
     @cached_property
     def shining_pom(self):
-        return QPixmap(str(ASSETS / "shining-pom.png"))
+        return QPixmap(str(self.directory / "shining-pom.png"))
 
     def fish_picture(self, fish_id: int) -> QPixmap:
         return self.tile(FISH_TILE_START + fish_id if 0 <= fish_id < FISH_COUNT else 0x6D)
@@ -166,15 +172,9 @@ class GameArt:
         return ITEM_TILES.get(code, SECTION_ICONS.get(item.category, SECTION_ICONS["all"])), False
 
 
-@cache
-def shared_game_art() -> GameArt:
-    return GameArt()
-
-
-def _read_rgba_texture(path: Path, width: int, height: int) -> QImage:
-    data = path.read_bytes()
+def _read_rgba_texture(name: str, data: bytes, width: int, height: int) -> QImage:
     length = width * height * 4
-    if path.name.endswith(".dds.phyre"):
+    if name.endswith(".dds.phyre"):
         packed = sum(max(1, width >> i) * max(1, height >> i) * 4
                      for i in range(max(width, height).bit_length()))
         marker, image_format = b"PTexture2D\0ARGB8\0", QImage.Format.Format_ARGB32
@@ -183,45 +183,185 @@ def _read_rgba_texture(path: Path, width: int, height: int) -> QImage:
         marker, image_format = b"PTexture2D\0RGBA8\0", QImage.Format.Format_RGBA8888
     start = len(data) - packed
     if not data.startswith(b"RYHP") or not 0 < start < 8192 or marker not in data[:start]:
-        raise ValueError(f"Unrecognized Cold Steel II texture: {path.name}")
+        raise ValueError(f"Unrecognized Cold Steel II texture: {name}")
     texture = QImage(data[start:start + length], width, height, width * 4, image_format)
     return texture.flipped(Qt.Orientation.Vertical)
 
 
-def import_art(game: Path, senpatcher: Path) -> None:
+def _decompress_type1(data: bytes, size: int) -> bytes:
+    # Falcom Type 1 format as documented in SenPatcher's native/sen/pkg_extract.cpp.
+    if len(data) < 12:
+        raise ValueError("Truncated Cold Steel II texture")
+    expected, length, marker = unpack_from("<III", data)
+    if expected != size or length != len(data) or marker > 255:
+        raise ValueError("Invalid Cold Steel II texture header")
+    token = bytes((marker,))
+    result = bytearray()
+    position = 12
+    while position < length:
+        end = data.find(token, position)
+        if end == -1:
+            result.extend(data[position:])
+            break
+        result.extend(data[position:end])
+        position = end + 1
+        if position >= length:
+            raise ValueError("Truncated Cold Steel II texture token")
+        distance = data[position]
+        position += 1
+        if distance == marker:
+            result.append(marker)
+        else:
+            distance -= distance > marker
+            if position >= length or not 0 < distance <= len(result):
+                raise ValueError("Invalid Cold Steel II texture reference")
+            count = data[position]
+            position += 1
+            if len(result) + count > size:
+                raise ValueError("Cold Steel II texture exceeds its declared size")
+            previous = result[-distance:]
+            result.extend((previous * ((count + distance - 1) // distance))[:count])
+        if len(result) > size:
+            raise ValueError("Cold Steel II texture exceeds its declared size")
+    if len(result) != size:
+        raise ValueError("Cold Steel II texture length does not match its header")
+    return bytes(result)
+
+
+_PKG_ENTRY = Struct("<64s4I")
+
+
+def _pkg_textures(path: Path, names: set[str]) -> dict[str, bytes]:
+    with path.open("rb") as stream:
+        length = stream.seek(0, os.SEEK_END)
+        stream.seek(0)
+        header = stream.read(8)
+        if len(header) != 8:
+            raise ValueError("Truncated Cold Steel II package")
+        count = unpack_from("<I", header, 4)[0]
+        end = 8 + count * _PKG_ENTRY.size
+        if count > 1024 or end > length:
+            raise ValueError("Invalid Cold Steel II package index")
+        index = stream.read(end - 8)
+        textures = {}
+        for name, size, packed, offset, flags in _PKG_ENTRY.iter_unpack(index):
+            key = name.split(b"\0", 1)[0].decode("ascii", errors="replace")
+            if key not in names:
+                continue
+            if key in textures or flags != 1 or not 0 < packed <= 12_000_000 or not 0 < size <= 12_000_000:
+                raise ValueError(f"Unsupported Cold Steel II texture: {key}")
+            if offset < end or offset + packed > length:
+                raise ValueError(f"Invalid Cold Steel II texture bounds: {key}")
+            stream.seek(offset)
+            textures[key] = _decompress_type1(stream.read(packed), size)
+        if textures.keys() != names:
+            raise ValueError(f"Required textures missing from {path.name}")
+        return textures
+
+
+def save_art(image: QImage, path: Path, image_format: str = "PNG") -> None:
+    output = QSaveFile(str(path))
+    if not (output.open(QIODevice.OpenModeFlag.WriteOnly) and image.save(output, image_format) and output.commit()):
+        raise OSError(f"Could not cache {path.name}")
+
+
+def prepare_art(game: Path) -> Path:
+    if (ASSETS / "item-atlas.png").is_file():
+        return ASSETS
+    key = sha256(os.fsencode(game.resolve())).hexdigest()[:16]
+    destination = ART_CACHE / key
+    if not (destination / "item-atlas.png").is_file():
+        import_art(game, destination)
+    return destination
+
+
+def steam_logo(game: Path) -> QPixmap:
+    roots = [game.parents[2]] if len(game.parents) >= 3 else []
+    if os.name == "nt":
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam") as key:
+                roots.append(Path(winreg.QueryValueEx(key, "SteamPath")[0]))
+        except OSError:
+            pass
+    for root in roots:
+        logo = QPixmap(str(root / "appcache/librarycache/748490/logo.png"))
+        if not logo.isNull():
+            return logo
+    return QPixmap()
+
+
+class BackdropFrame(QObject):
+    ready = Signal(QImage)
+    finished = Signal()
+    timestamp = 112_000
+
+    def __init__(self, movie: Path, destination: Path, parent=None):
+        super().__init__(parent)
+        self.destination = destination
+        self.player = QMediaPlayer(self)
+        self.sink = QVideoSink(self)
+        self.player.setVideoSink(self.sink)
+        self.player.mediaStatusChanged.connect(self._status_changed)
+        self.player.errorOccurred.connect(self.stop)
+        self.sink.videoFrameChanged.connect(self._frame)
+        self.timer = QTimer(self)
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.stop)
+        self.timer.start(6_000)
+        self.player.setSource(QUrl.fromLocalFile(str(movie)))
+
+    def _status_changed(self, status):
+        if status == QMediaPlayer.MediaStatus.LoadedMedia and self.player.isSeekable():
+            self.player.setPosition(self.timestamp)
+            self.player.play()
+        elif status in (QMediaPlayer.MediaStatus.InvalidMedia, QMediaPlayer.MediaStatus.EndOfMedia):
+            self.stop()
+
+    def _frame(self, frame):
+        if not self.timer.isActive() or not frame.isValid() or frame.startTime() < self.timestamp * 1000:
+            return
+        image = frame.toImage()
+        if image.isNull():
+            return
+        self.stop()
+        try:
+            save_art(image, self.destination, "JPG")
+        except OSError:
+            pass
+        self.ready.emit(image)
+
+    def stop(self, *_):
+        if self.timer.isActive():
+            self.timer.stop()
+            self.player.stop()
+            self.finished.emit()
+            self.deleteLater()
+
+
+def import_art(game: Path, destination: Path) -> None:
     japanese = game / "data/asset/D3D11"
     english = game / "data/asset/D3D11_us"
-    with TemporaryDirectory() as directory:
-        root = Path(directory)
-        def extract(package: Path) -> Path:
-            extracted = root / package.stem
-            extracted.mkdir()
-            subprocess.run(
-                [str(senpatcher.resolve()), "PKG.Extract", "-o", str(extracted), str(package)],
-                check=True,
-            )
-            return extracted
-
-        ASSETS.mkdir(exist_ok=True)
-        system = extract(english / "I_SYSTEM.pkg")
-        for original, output, width, height in (
+    destination.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(dir=destination) as directory:
+        stage = Path(directory)
+        system_files = (
             ("icons.dds.phyre", "item-atlas.png", 512, 512),
             ("icons2.dds.phyre", "secondary-atlas.png", 512, 256),
             ("orbment_mq.dds.phyre", "master-atlas.png", 512, 256),
             ("campmenu3.png.phyre", "menu-atlas.png", 1024, 512),
-        ):
-            picture = _read_rgba_texture(system / original, width, height)
-            if not picture.save(str(ASSETS / output)):
-                raise OSError(f"Could not write {output}.")
+        )
+        system = _pkg_textures(english / "I_SYSTEM.pkg", {name for name, *_ in system_files})
+        for original, output, width, height in system_files:
+            picture = _read_rgba_texture(original, system[original], width, height)
+            save_art(picture, stage / output)
             if output == "item-atlas.png":
                 cursor = picture.copy(457, 357, 19, 21)
                 for direction, angle in (("up", -90), ("down", 90)):
-                    filename = ASSETS / f"arrow-{direction}.png"
-                    if not cursor.transformed(QTransform().rotate(angle)).save(str(filename)):
-                        raise OSError(f"Could not write {filename.name}.")
+                    save_art(cursor.transformed(QTransform().rotate(angle)), stage / f"arrow-{direction}.png")
 
-        fish_dir = extract(english / "I_NOTE_FISH.pkg")
-        fish = _read_rgba_texture(fish_dir / "note_fis.dds.phyre", 1024, 1024)
+        name = "note_fis.dds.phyre"
+        fish = _read_rgba_texture(name, _pkg_textures(english / "I_NOTE_FISH.pkg", {name})[name], 1024, 1024)
         atlas = QImage(576, 384, QImage.Format.Format_RGBA8888)
         atlas.fill(Qt.GlobalColor.transparent)
         painter = QPainter(atlas)
@@ -229,23 +369,27 @@ def import_art(game: Path, senpatcher: Path) -> None:
             x, y = (8, 2 + i * 78) if i < 13 else (516, 2 + (i - 13) * 78)
             painter.drawImage(QPoint(i % 6 * 96 + 1, i // 6 * 96 + 10), fish, QRect(x, y, 93, 76))
         painter.end()
-        if not atlas.save(str(ASSETS / "fish-art.png")):
-            raise OSError("Could not write fish-art.png.")
+        save_art(atlas, stage / "fish-art.png")
 
         for package, original, output, width, height, crop in (
             ("I_MG002", "min002cd.png.phyre", "blade-ii.png", 512, 512, (4, 3, 120, 157)),
             ("I_NOTE_MON006", "note_mon006.dds.phyre", "shining-pom.png", 256, 256, (26, 22, 202, 209)),
             ("I_NOTE_ICONS", "note_ic_main.dds.phyre", "thors.png", 512, 512, (60, 15, 408, 484)),
         ):
-            extracted = extract(japanese / f"{package}.pkg")
-            picture = _read_rgba_texture(extracted / original, width, height).copy(*crop)
-            if not picture.save(str(ASSETS / output)):
-                raise OSError(f"Could not write {output}.")
+            data = _pkg_textures(japanese / f"{package}.pkg", {original})[original]
+            save_art(_read_rgba_texture(original, data, width, height).copy(*crop), stage / output)
+
+        # The primary atlas is published last so readers never see an incomplete first import.
+        primary = stage / "item-atlas.png"
+        for path in stage.iterdir():
+            if path != primary:
+                path.replace(destination / path.name)
+        primary.replace(destination / primary.name)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("game", type=Path, help="Cold Steel II installation directory")
-    parser.add_argument("senpatcher", type=Path, help="Path to the local SenPatcher.exe")
+    parser.add_argument("--output", type=Path, default=ASSETS, help="Output directory for the extracted art")
     args = parser.parse_args()
-    import_art(args.game, args.senpatcher)
+    import_art(args.game, args.output)

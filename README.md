@@ -23,13 +23,13 @@ An offline inventory editor for **The Legend of Heroes: Trails of Cold Steel II*
 
 ## Download Latest Release
 
-Download `Cold-Steel-II-Save-Editor-v1.0.0-Windows.zip` and `SHA256SUMS.txt` from the first release. [GitHub Releases](https://github.com/Sqzzzzzzz/Cold-Steel-II-Save-Editor/releases/latest)
+Download the Windows ZIP and its separate `SHA256SUMS.txt`. [GitHub Releases](https://github.com/Sqzzzzzzz/Cold-Steel-II-Save-Editor/releases/latest)
 
 ## Installation
 
 1. Compare the archive's SHA-256 with `SHA256SUMS.txt`. On Windows, run `Get-FileHash -Algorithm SHA256 -LiteralPath '<archive.zip>'`.
 2. Extract `Cold_Steel_II_Save_Editor.exe` from the ZIP and run it. The executable includes Python and Qt.
-3. If Steam detection misses the installation, choose **Tools → Scan game folder** and select the folder containing `data`.
+3. If Steam detection misses the installation, choose **Tools → Scan game folder** and select the folder containing `data`. The Courageous background and original inventory icons are loaded from your installed game when the catalog is scanned.
 
 ## How to Use
 
@@ -55,7 +55,7 @@ To undo a write, open the edited slot and choose **Tools → Restore Backup**. R
 | Game or catalog missing | Choose the Steam installation that contains `data/text/dat_us/t_item.tbl`. |
 | No compatible save found | Use Ctrl+O with the actual `.dat` slot. `sdslot.dat`, settings, thumbnails, and autosave sidecars are separate files. |
 | Slot changed since opening | Reopen the slot or save a separate copy. Close the game before overwriting. |
-| No item artwork | The portable build uses the built-in interface styling. For a local build, see [game artwork](docs/asset-provenance.md). |
+| No item artwork | Scan the folder containing the full Steam game installation. The item icons require the game's original texture packages, and the background requires the intro movie. |
 
 ## Known Limitations
 
@@ -71,7 +71,7 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements-build.txt
 .venv\Scripts\python.exe -m unittest discover -v
 .venv\Scripts\python.exe build_preview.py --without-assets
-.venv\Scripts\python.exe package_release.py --portable --tag v1.0.0
+.venv\Scripts\python.exe package_release.py --portable
 ```
 
 For a local themed build, supply the [local assets](docs/asset-provenance.md) and omit `--without-assets` and `--portable`. The packaging script extracts and runs the ZIP in both languages before writing its checksum. Pass `--save <path>` to exercise startup with a temporary copy of a real slot. The integration tests use the local Steam installation and copy genuine saves before writing.

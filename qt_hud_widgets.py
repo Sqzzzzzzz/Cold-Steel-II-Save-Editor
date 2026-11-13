@@ -5,7 +5,7 @@ per window size and device scale.
 """
 from __future__ import annotations
 
-from functools import cache, lru_cache
+from functools import lru_cache
 import math
 from PySide6.QtCore import QEvent, Qt, QPointF, QRect, QRectF, QSize
 from PySide6.QtGui import (
@@ -15,7 +15,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication, QWidget, QFrame, QPushButton, QCheckBox, QStyledItemDelegate, QStyle, QStyleOptionButton, QLabel,
 )
-from game_art import ASSETS, HUD_TILES, shared_game_art
+from game_art import ASSETS, HUD_TILES
 
 
 def bevel(rect, cut=7):
@@ -28,15 +28,13 @@ def bevel(rect, cut=7):
     return path
 
 
-@cache
-def hud_icon(kind, size=28):
+def hud_icon(art, kind):
     """Use extracted game-menu art and native window-control symbols."""
     symbols = {
         'help': QStyle.StandardPixmap.SP_DialogHelpButton,
     }
     if kind in symbols:
         return QApplication.style().standardIcon(symbols[kind])
-    art = shared_game_art()
     menu = {
         'latest': 'open', 'open': 'open', 'save': 'save', 'backup': 'save',
         'inventory': 'inventory', 'catalog': 'catalog', 'tools': 'game',
@@ -187,6 +185,11 @@ class Backdrop(QWidget):
         self._scene=QPixmap()
         self._scene_key=None
         self.setAutoFillBackground(False)
+
+    def set_texture(self, texture):
+        self.texture=texture
+        self._scene_key=None
+        self.update()
 
     def paintEvent(self,event):
         dpr=self.devicePixelRatioF()

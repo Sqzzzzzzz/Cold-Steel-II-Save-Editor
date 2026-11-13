@@ -78,8 +78,9 @@ def main() -> None:
     copy2(Path(sys.base_prefix) / "LICENSE.txt", notices / "Python-LICENSE.txt")
     copy2(pyinstaller.locate_file(copying), notices / "PyInstaller-COPYING.txt")
     if onefile:
-        for name in ("README.md", "GPL-3.0-only.txt", "LGPL-3.0-only.txt", "Python-LICENSE.txt", "PyInstaller-COPYING.txt"):
-            arguments += ["--add-data", f"{notices / name};{NOTICES}"]
+        for notice in sorted(notices.iterdir()):
+            if notice.is_file():
+                arguments += ["--add-data", f"{notice};{NOTICES}"]
         arguments += ["--add-data", f"{ROOT / 'LICENSE'};."]
     subprocess.run([*arguments, str(ROOT / "app.py")], cwd=ROOT, env=environment, check=True)
     if onefile:
