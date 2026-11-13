@@ -6,7 +6,7 @@
 
 An offline inventory editor for **The Legend of Heroes: Trails of Cold Steel II** on Steam. It reads item data from the installed game and changes only the active inventory in a verified PC save.
 
-![Windows release running with a sample inventory](docs/editor-en.jpg)
+![Cold Steel II Save Editor v1.0.2 with the Courageous background, original item icons, and Russian catalog](docs/editor.jpg)
 
 ## Features
 
@@ -14,7 +14,7 @@ An offline inventory editor for **The Legend of Heroes: Trails of Cold Steel II*
 - Add, remove, or change quantities for individual items or selections. Review, undo, or reset edits before saving.
 - View equipment stats, master quartz abilities, and read-only fishing and DLC references.
 - Compare inventories, export a CSV, save a separate `.dat`, or overwrite a slot with a verified backup.
-- Switch the interface between English and Russian.
+- Switch the interface and item names between English and Russian.
 
 ## Requirements
 
@@ -61,7 +61,7 @@ To undo a write, open the edited slot and choose **Tools → Restore Backup**. R
 
 - Only the tested Steam PC format is supported. A separate export does not register a new slot in the game.
 - Service records are hidden. Quest items, recipes, Black Records, and equipped master quartz or ARCUS covers are protected. Editing DLC items requires their presence in the original slot.
-- The portable build uses original English catalog text. Where a local Russian dictionary is available, untranslated fields fall back to the game's original text.
+- The release includes Russian names for all 1,205 catalog entries. Descriptions and other text without a Russian translation use the game's English text.
 - The Windows EXE is unsigned. The themed build was tested in-game by loading an isolated copy and confirming **Tear Balm ×73** in the inventory and in game-generated autosaves.
 
 ## Build & Test
@@ -74,7 +74,7 @@ python -m venv .venv
 .venv\Scripts\python.exe package_release.py --portable
 ```
 
-For a local themed build, supply the [local assets](docs/asset-provenance.md) and omit `--without-assets` and `--portable`. The packaging script extracts and runs the ZIP in both languages before writing its checksum. Pass `--save <path>` to exercise startup with a temporary copy of a real slot. The integration tests use the local Steam installation and copy genuine saves before writing.
+The commands above build the standard package used in CI. See [local build options](docs/asset-provenance.md) for the game icon, Russian item dictionary, and artwork. The packaging script extracts and runs the ZIP in both languages before writing its checksum. Pass `--save <path>` to exercise startup with a temporary copy of a real slot. The integration tests use the local Steam installation and copy genuine saves before writing.
 
 ## Credits & Disclaimer
 

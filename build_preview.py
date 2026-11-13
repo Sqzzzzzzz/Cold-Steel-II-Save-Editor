@@ -14,6 +14,8 @@ from version import VERSION
 ROOT = Path(__file__).resolve().parent
 NAME = "Cold_Steel_II_Save_Editor"
 EDITOR_ICON = ROOT / "branding/app.ico"
+GAME_ICON = ROOT / "assets/app.ico"
+ITEM_TEXT = ROOT / "assets/item-text.json"
 NOTICES = "third_party"
 ART = (
     "courageous-backdrop.jpg", "item-text.json",
@@ -27,8 +29,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--without-assets", action="store_true", help="Build without locally supplied game assets")
     parser.add_argument("--onedir", action="store_true", help="Build with replaceable runtime libraries beside the EXE")
+    parser.add_argument("--original-icon", action="store_true", help="Use the original game icon and local dictionary in the local standalone EXE")
     args = parser.parse_args()
     onefile = args.without_assets and not args.onedir
+    if args.original_icon and (not onefile or not GAME_ICON.is_file() or not ITEM_TEXT.is_file()):
+        parser.error("--original-icon requires --without-assets, assets/app.ico and assets/item-text.json.")
     assets = ROOT / "assets"
     if not args.without_assets:
         missing = [name for name in ART if not (assets / name).is_file()]
@@ -41,9 +46,10 @@ def main() -> None:
     environment["PYINSTALLER_CONFIG_DIR"] = str(ROOT / "build/pyinstaller-cache")
     for key in ("PYTHONHOME", "PYTHONPATH", "QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH", "QML2_IMPORT_PATH"):
         environment.pop(key, None)
-    build = ROOT / "build" / ("portable" if args.without_assets else "local")
+    variant = "local-standalone" if args.original_icon else "portable"
+    build = ROOT / "build" / (variant if args.without_assets else "local")
     build.mkdir(parents=True, exist_ok=True)
-    dist = ROOT / "dist" / "portable" if args.without_assets else ROOT / "dist"
+    dist = ROOT / "dist" / variant if args.without_assets else ROOT / "dist"
     version_resource = build / "windows-version.txt"
     version_tuple = (*map(int, VERSION.split(".")), 0)
     version_resource.write_text(
@@ -66,7 +72,10 @@ def main() -> None:
         "--workpath", str(build / "pyinstaller"), "--distpath", str(dist),
     ]
     if args.without_assets:
-        arguments += ["--icon", str(EDITOR_ICON), "--add-data", f"{EDITOR_ICON};branding"]
+        icon = GAME_ICON if args.original_icon else EDITOR_ICON
+        arguments += ["--icon", str(icon), "--add-data", f"{icon};branding"]
+        if args.original_icon:
+            arguments += ["--add-data", f"{ITEM_TEXT};translations"]
     else:
         arguments += ["--icon", str(assets / "app.ico")]
         for name in ART:
@@ -91,7 +100,7 @@ def main() -> None:
     docs = output / 'docs'
     docs.mkdir(exist_ok=True)
     copy2(ROOT / 'docs/asset-provenance.md', docs)
-    copy2(ROOT / 'docs/editor-en.jpg', docs)
+    copy2(ROOT / 'docs/editor.jpg', docs)
     copytree(notices, output / NOTICES, dirs_exist_ok=True)
 
 

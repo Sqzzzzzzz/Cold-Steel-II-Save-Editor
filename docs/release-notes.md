@@ -1,4 +1,4 @@
-# Cold Steel II Save Editor v1.0.1
+# Cold Steel II Save Editor v1.0.2
 
 ## Overview
 
@@ -9,20 +9,13 @@ An offline Windows inventory editor for the Steam PC version of *The Legend of H
 - Detect Steam installations and recent saves, or open a `.dat` or `.bak` file manually.
 - Search, sort, and filter the installed game's catalog and inventory. Edit quantities in batches, review changes, and undo or reset before saving.
 - Export inventory to CSV, write a separate save copy, or overwrite the open slot with a verified backup. Restore that backup from the Tools panel.
-- Switch between English and Russian controls. Item data comes from the installed game.
+- Switch between English and Russian controls and item names. Item data comes from the installed game.
 
 ## Improvements
 
-The standalone Windows executable has a new airship icon. When the editor scans the installed game, it loads the Courageous background, the Thors crest, and the original item and interface icons. These images are cached on your computer.
-
-## Bug Fixes
-
-- Latest Save falls back to Steam when the remembered folder has no compatible slots.
-- Save a Copy rejects an existing file link, including a link whose target is missing.
-- Background file errors leave the editor open so edits can be reviewed or saved separately.
-- Restoring a backup validates the changed item IDs and quantities against the catalog and refreshes the displayed quantities from the restored file.
-- Opening a save before locating the game leaves the first-launch setup visible.
-- At high DPI or on small displays, the editor can scroll to controls outside the available work area.
+- The standalone Windows executable uses the same icon as the Steam game's EXE.
+- All 1,205 item names are available in Russian. Switching languages updates the catalog, inventory, and selected item.
+- The README shows the Russian catalog with the Courageous background and original game icons. The editor loads this artwork from the installed game and caches it on your computer.
 
 ## Installation
 
@@ -39,10 +32,10 @@ Close the game before overwriting a slot. The editor creates and verifies a back
 
 ## Downloads
 
-- `Cold-Steel-II-Save-Editor-v1.0.1-Windows.zip` contains only `Cold_Steel_II_Save_Editor.exe`.
+- `Cold-Steel-II-Save-Editor-v1.0.2-Windows.zip` contains only `Cold_Steel_II_Save_Editor.exe`.
 - `SHA256SUMS.txt` is a separate release download with the SHA-256 checksum for the ZIP.
 
-The executable uses Qt and Qt for Python under LGPLv3 and FFmpeg under LGPLv2.1 or later. [Third-party notices, sources and rebuild instructions](https://github.com/Sqzzzzzzz/Cold-Steel-II-Save-Editor/blob/v1.0.1/third_party/README.md)
+The executable uses Qt and Qt for Python under LGPLv3 and FFmpeg under LGPLv2.1 or later. [Third-party notices, sources and rebuild instructions](https://github.com/Sqzzzzzzz/Cold-Steel-II-Save-Editor/blob/v1.0.2/third_party/README.md)
 
 ## Known Limitations
 

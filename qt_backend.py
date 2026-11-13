@@ -28,7 +28,9 @@ ITEM_TABLE = Path("data/text/dat_us/t_item.tbl")
 FISH_TABLE = ITEM_TABLE.with_name("t_notefish.tbl")
 DLC_TABLE = ITEM_TABLE.with_name("t_dlc.tbl")
 MASTER_TABLE = ITEM_TABLE.with_name("t_mstqrt.tbl")
-ITEM_TEXT = Path(__file__).resolve().parent / "assets/item-text.json"
+ROOT = Path(__file__).resolve().parent
+ITEM_TEXT = ROOT / "assets/item-text.json"
+BUNDLED_ITEM_TEXT = ROOT / "translations/item-text.json"
 CYRILLIC = re.compile(r"[А-Яа-яЁё]")
 NON_LATIN = re.compile(r"[А-Яа-яЁё\u3040-\u30ff\u3400-\u9fff]")
 LATIN = re.compile(r"[A-Za-z]")
@@ -134,9 +136,10 @@ def uses_language(text: str, language: str) -> bool:
 
 
 def read_item_text() -> dict[str, dict[ItemKey, tuple[str, str]]]:
-    if not ITEM_TEXT.is_file():
+    path = BUNDLED_ITEM_TEXT if BUNDLED_ITEM_TEXT.is_file() else ITEM_TEXT
+    if not path.is_file():
         return {}
-    raw = json.loads(ITEM_TEXT.read_text(encoding="utf-8"))
+    raw = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError("Invalid item translations.")
     translations = {}

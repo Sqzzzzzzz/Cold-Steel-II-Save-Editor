@@ -10,13 +10,13 @@ import subprocess
 from tempfile import TemporaryDirectory
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from build_preview import ART, EDITOR_ICON, NAME, NOTICES, ROOT
+from build_preview import ART, EDITOR_ICON, GAME_ICON, ITEM_TEXT, NAME, NOTICES, ROOT
 from version import VERSION
 
 
 ARCHIVE_NAME = f'Cold-Steel-II-Save-Editor-v{VERSION}-Windows.zip'
 DOCUMENTS = (
-    'LICENSE', 'README.md', 'docs/asset-provenance.md', 'docs/editor-en.jpg',
+    'LICENSE', 'README.md', 'docs/asset-provenance.md', 'docs/editor.jpg',
     'third_party/README.md', 'third_party/Python-LICENSE.txt',
     'third_party/GPL-3.0-only.txt', 'third_party/LGPL-3.0-only.txt',
     'third_party/PyInstaller-COPYING.txt',
@@ -49,7 +49,7 @@ def digest(path: Path) -> str:
         return file_digest(stream, 'sha256').hexdigest()
 
 
-def validate_onefile(executable: Path):
+def validate_onefile(executable: Path, *, original_icon: bool = False):
     from PyInstaller.archive.readers import CArchiveReader
 
     app = CArchiveReader(str(executable))
@@ -59,23 +59,33 @@ def validate_onefile(executable: Path):
     required.update(f'{NOTICES}/{Path(name).name}' for name in DOCUMENTS if name.startswith(f'{NOTICES}/'))
     if not required <= members.keys():
         raise ValueError(f'Missing embedded resources: {", ".join(sorted(required - members.keys()))}')
-    if app.extract(members['branding/app.ico']) != EDITOR_ICON.read_bytes():
-        raise ValueError('The embedded application icon differs from the editor icon.')
+    icon = GAME_ICON if original_icon else EDITOR_ICON
+    if app.extract(members['branding/app.ico']) != icon.read_bytes():
+        raise ValueError('The embedded application icon differs from the selected icon.')
+    dictionary = members.get('translations/item-text.json')
+    if original_icon:
+        if dictionary is None or app.extract(dictionary) != ITEM_TEXT.read_bytes():
+            raise ValueError('The local standalone executable lacks the current item dictionary.')
+    elif dictionary is not None:
+        raise ValueError('The public executable contains the local item dictionary.')
     if any(name.startswith('assets/') or PurePosixPath(name).suffix.lower() in {'.dat', '.bak', '.vdf', '.log', '.key', '.pem'}
            for name in members):
         raise ValueError('Unexpected private files or game resources embedded in the executable.')
 
 
-def package(*, portable: bool, tag: str | None, save: Path | None) -> Path:
+def package(*, portable: bool, tag: str | None, save: Path | None, original_icon: bool = False) -> Path:
     if tag is not None and tag != f'v{VERSION}':
         raise ValueError(f'Tag must be v{VERSION}.')
-    dist = ROOT / 'dist' / 'portable' if portable else ROOT / 'dist'
+    if original_icon and not portable:
+        raise ValueError('--original-icon requires --portable.')
+    variant = 'local-standalone' if original_icon else 'portable'
+    dist = ROOT / 'dist' / variant if portable else ROOT / 'dist'
     bundle = dist / NAME
     internal = bundle / '_internal'
     assets = internal / 'assets'
     if portable:
         executable = dist / f'{NAME}.exe'
-        validate_onefile(executable)
+        validate_onefile(executable, original_icon=original_icon)
     else:
         executable = bundle / f'{NAME}.exe'
         required = (*DOCUMENTS, '_internal/PySide6/translations/qtbase_ru.qm', '_internal/base_library.zip')
@@ -92,7 +102,7 @@ def package(*, portable: bool, tag: str | None, save: Path | None) -> Path:
             or unpack_from('<H', binary, pe+92)[0] != 2):
         raise ValueError('Expected a 64-bit Windows GUI executable.')
 
-    output = ROOT / 'release' / ('portable' if portable else 'local')
+    output = ROOT / 'release' / (variant if portable else 'local')
     output.mkdir(parents=True, exist_ok=True)
     archive = output / ARCHIVE_NAME
     with TemporaryDirectory(dir=output, prefix='.package-') as directory:
@@ -167,7 +177,8 @@ def package(*, portable: bool, tag: str | None, save: Path | None) -> Path:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--portable', action='store_true', help='Package an asset-free build for public distribution.')
+    parser.add_argument('--original-icon', action='store_true', help='Package the local standalone EXE with the game icon and dictionary.')
     parser.add_argument('--tag')
     parser.add_argument('--save', type=Path, help='Smoke-test the extracted EXE with a temporary copy of this save.')
     options = parser.parse_args()
-    print(package(portable=options.portable, tag=options.tag, save=options.save))
+    print(package(portable=options.portable, tag=options.tag, save=options.save, original_icon=options.original_icon))

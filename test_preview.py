@@ -77,6 +77,27 @@ class PreviewTests(TestCase):
             self.assertEqual(core.item_name(1), "Item #1")
             self.assertEqual(core.details_text(1), "")
 
+    def test_standalone_item_dictionary_changes_russian_names_only(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            table = root / ITEM_TABLE
+            table.parent.mkdir(parents=True)
+            table.touch()
+            dictionary = root / "item-text.json"
+            dictionary.write_text('{"ru":{"0":["Зелье «Тиа»","Восполняет ОЗ"]}}', encoding="utf-8")
+            items = {0: CatalogItem("Tear Balm", "Restores HP", "items", 99, 0x81, 0)}
+            profile = QSettings(str(root / "settings.ini"), QSettings.Format.IniFormat)
+            core = EditorCore(profile=profile)
+            with (patch("qt_backend.BUNDLED_ITEM_TEXT", dictionary),
+                  patch("qt_backend.ITEM_TEXT", root / "missing.json"),
+                  patch("qt_backend.read_catalog", return_value=items)):
+                core.apply_scan_result(scan_game_tables(root))
+            for language, name, description in (("ru", "Зелье «Тиа»", "Восполняет ОЗ"),
+                                                ("en", "Tear Balm", "Restores HP"),
+                                                ("ru", "Зелье «Тиа»", "Восполняет ОЗ")):
+                core.set_language(language)
+                self.assertEqual((core.item_name(0), core.details_text(0)), (name, description))
+
     def test_invalid_profile_fields_are_discarded(self):
         with TemporaryDirectory() as directory:
             profile = QSettings(str(Path(directory) / "settings.ini"), QSettings.Format.IniFormat)

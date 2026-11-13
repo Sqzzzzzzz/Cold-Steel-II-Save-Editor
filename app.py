@@ -9,7 +9,7 @@ from PySide6.QtCore import QCoreApplication, QSettings, QTimer
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
-from qt_backend import EditorCore
+from qt_backend import BUNDLED_ITEM_TEXT, EditorCore
 from game_art import ASSETS
 from qt_window import APP_NAME, VERSION, MainWindow
 from save_storage import SteamSaveStorage
@@ -113,6 +113,11 @@ def main() -> int:
                     ready &= (core.language == language and window.title.text() == title
                               and model.headers[0] == header
                               and QCoreApplication.translate("QPlatformTheme", "Cancel") == cancel)
+                    if BUNDLED_ITEM_TEXT.is_file():
+                        expected = "Зелье «Тиа»" if language == "ru" else core.catalog[0]["name"]
+                        ready &= model.index_for_id(0).data() == expected
+                        if core.quantity(0):
+                            ready &= window.inv_table.model().index_for_id(0).data() == expected
                     if item_id is not None:
                         count = core.quantity(item_id)
                         window.delete_btn.click()

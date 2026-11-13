@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.2
+
+- Add a local single-executable build with the original Windows icon and Russian item-name dictionary.
+- Verify that both inventory tables switch item names between Russian and English in the local standalone EXE.
+
 ## 1.0.1
 
 - Restore the Courageous background, Thors crest, and original item and interface icons by loading them from the local Steam installation.
