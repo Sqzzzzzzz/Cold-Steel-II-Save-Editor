@@ -16,6 +16,8 @@ from item_catalog import CatalogItem
 
 
 ASSETS = Path(__file__).resolve().parent / "assets"
+COLOR_CREST = ASSETS / "thors-color.png"
+BUNDLED_COLOR_CREST = ASSETS.parent / "branding/thors-color.png"
 ART_CACHE = Path(os.environ.get("LOCALAPPDATA", Path.home() / ".cache")) / "ColdSteelSaveEditor" / "CS2-art-v1"
 INTRO_MOVIE = Path("data/movie/ed82_OP.avi")
 SECONDARY_TILE = 0x100

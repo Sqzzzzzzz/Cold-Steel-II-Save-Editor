@@ -96,7 +96,8 @@ def main() -> int:
                 and (args.save is None or window.core.source == args.save.resolve())
             )
             if args.smoke_test_local_art:
-                ready &= (not ASSETS.exists() and not window.emblem_art.isNull() and not window._icon(0).isNull()
+                ready &= (not ASSETS.exists() and not window.crest.pixmap().isNull()
+                          and window.rail_crest.isVisible() and not window._icon(0).isNull()
                           and not window.navigation['inventory'].icon().isNull())
             if ready and args.save is not None:
                 model = window.cat_table.model()

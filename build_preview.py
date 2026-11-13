@@ -16,6 +16,7 @@ NAME = "Cold_Steel_II_Save_Editor"
 EDITOR_ICON = ROOT / "branding/app.ico"
 GAME_ICON = ROOT / "assets/app.ico"
 ITEM_TEXT = ROOT / "assets/item-text.json"
+COLOR_CREST = ROOT / "assets/thors-color.png"
 NOTICES = "third_party"
 ART = (
     "courageous-backdrop.jpg", "item-text.json",
@@ -80,6 +81,8 @@ def main() -> None:
         arguments += ["--icon", str(assets / "app.ico")]
         for name in ART:
             arguments += ["--add-data", f"{assets / name};assets"]
+    if (args.original_icon or not args.without_assets) and COLOR_CREST.is_file():
+        arguments += ["--add-data", f"{COLOR_CREST};branding"]
     pyinstaller = distribution("PyInstaller")
     copying = next(file for file in pyinstaller.files if file.name == "COPYING.txt")
     notices = build / NOTICES

@@ -221,6 +221,30 @@ class Backdrop(QWidget):
         painter.end()
 
 
+class RailCrest(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._art = QPixmap()
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+
+    def set_art(self, picture: QPixmap):
+        self._art = picture
+        self.update()
+
+    def paintEvent(self, event):
+        space = QSize(min(174, self.width() - 20), min(174, self.height() - 24))
+        if self._art.isNull() or space.isEmpty():
+            return
+        size = self._art.size().scaled(space, Qt.AspectRatioMode.KeepAspectRatio)
+        target = QRectF((self.width() - size.width()) / 2, self.height() - size.height() - 16,
+                        size.width(), size.height())
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        painter.setOpacity(0.78)
+        painter.drawPixmap(target, self._art, QRectF(self._art.rect()))
+        painter.end()
+
+
 class GlassPanel(QFrame):
     def __init__(self,parent=None,kind='normal'):
         super().__init__(parent);self.kind=kind

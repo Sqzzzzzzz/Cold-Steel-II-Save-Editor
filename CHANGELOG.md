@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.4
+
+- Display the Thors crest in the title bar and below the sidebar navigation.
+
 ## 1.0.3
 
 - Complete Russian catalog descriptions, including fishing entries and DLC packs.

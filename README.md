@@ -6,7 +6,7 @@
 
 An offline inventory editor for **The Legend of Heroes: Trails of Cold Steel II** on Steam. It reads item data from the installed game and changes only the active inventory in a verified PC save.
 
-![Cold Steel II Save Editor v1.0.3 showing the English catalog and Fiber Jacket description](docs/editor.jpg)
+![Cold Steel II Save Editor showing the English catalog with the Thors crest in the header and sidebar](docs/editor.jpg)
 
 ## Features
 

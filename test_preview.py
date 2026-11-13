@@ -10,6 +10,7 @@ from unittest import TestCase, skipUnless
 from unittest.mock import patch
 
 from PySide6.QtCore import QItemSelectionModel, QPoint, QSettings, QSize, QTimer, Qt
+from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox, QStyle, QStyleOptionButton
 
@@ -179,6 +180,33 @@ class PreviewTests(TestCase):
 
 
 class CleanWindowTests(TestCase):
+    def test_color_crest_survives_game_art_loading_and_fits_the_rail(self):
+        app = QApplication.instance() or QApplication([])
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            profile = QSettings(str(root / "settings.ini"), QSettings.Format.IniFormat)
+            crest = root / "thors-color.png"
+            sample = QPixmap(160, 190)
+            sample.fill(QColor("#fc220a"))
+            self.assertTrue(sample.save(str(crest)))
+            with patch("qt_window.BUNDLED_COLOR_CREST", crest), patch("qt_window.COLOR_CREST", root / "missing.png"):
+                window = MainWindow(EditorCore(profile=profile))
+            window.initial_load_timer.stop()
+            window.show()
+            try:
+                window.on_art_ready(root, root)
+                for size in (QSize(1536, 864), QSize(1138, 619)):
+                    window.fit_work_area(size)
+                    app.processEvents()
+                    self.assertEqual(window.crest.pixmap().toImage().pixelColor(10, 10), QColor("#fc220a"))
+                    rail = window.rail_crest.grab().toImage()
+                    color = rail.pixelColor(rail.width() // 2, rail.height() - 25)
+                    self.assertGreater(color.red(), color.green() + 100)
+                    self.assertLess(window.rail_crest.geometry().bottom(), window.rail_file.geometry().top())
+            finally:
+                window.close()
+                app.processEvents()
+
     def test_smaller_work_area_scrolls_without_changing_standard_layout(self):
         app = QApplication.instance() or QApplication([])
         with TemporaryDirectory() as directory:

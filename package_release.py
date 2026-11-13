@@ -10,7 +10,7 @@ import subprocess
 from tempfile import TemporaryDirectory
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from build_preview import ART, EDITOR_ICON, GAME_ICON, ITEM_TEXT, NAME, NOTICES, ROOT
+from build_preview import ART, COLOR_CREST, EDITOR_ICON, GAME_ICON, ITEM_TEXT, NAME, NOTICES, ROOT
 from version import VERSION
 
 
@@ -31,6 +31,8 @@ RUNTIME_FILE = re.compile(
 def bundle_files(bundle: Path, portable: bool):
     allowed = {*DOCUMENTS, f'{NAME}.exe', '_internal/base_library.zip'}
     allowed.update(('_internal/branding/app.ico',) if portable else (f'_internal/assets/{name}' for name in ART))
+    if not portable:
+        allowed.add('_internal/branding/thors-color.png')
     for path in sorted(bundle.rglob('*')):
         member = path.relative_to(bundle)
         if path.is_symlink() or path.is_junction():
@@ -63,11 +65,16 @@ def validate_onefile(executable: Path, *, original_icon: bool = False):
     if app.extract(members['branding/app.ico']) != icon.read_bytes():
         raise ValueError('The embedded application icon differs from the selected icon.')
     dictionary = members.get('translations/item-text.json')
+    crest = members.get('branding/thors-color.png')
     if original_icon:
         if dictionary is None or app.extract(dictionary) != ITEM_TEXT.read_bytes():
             raise ValueError('The local standalone executable lacks the current item dictionary.')
-    elif dictionary is not None:
-        raise ValueError('The public executable contains the local item dictionary.')
+        embedded_crest = app.extract(crest) if crest is not None else None
+        local_crest = COLOR_CREST.read_bytes() if COLOR_CREST.is_file() else None
+        if embedded_crest != local_crest:
+            raise ValueError('The embedded color crest differs from the local artwork.')
+    elif dictionary is not None or crest is not None:
+        raise ValueError('The public executable contains local artwork or translations.')
     if any(name.startswith('assets/') or PurePosixPath(name).suffix.lower() in {'.dat', '.bak', '.vdf', '.log', '.key', '.pem'}
            for name in members):
         raise ValueError('Unexpected private files or game resources embedded in the executable.')

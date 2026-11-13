@@ -1,4 +1,4 @@
-# Cold Steel II Save Editor v1.0.3
+# Cold Steel II Save Editor v1.0.4
 
 ## Overview
 
@@ -13,8 +13,8 @@ An offline Windows inventory editor for the Steam PC version of *The Legend of H
 
 ## Improvements
 
-- Russian descriptions cover all 1,205 catalog entries, including fish and DLC packs. The remaining descriptions were translated with offline machine assistance and terminology corrections.
-- All 75 distinct master quartz effect titles are available in Russian. English continues to use the original Steam text.
+- The color Thors Military Academy crest appears beside the title and below the sidebar navigation.
+- Russian descriptions cover all 1,205 catalog entries and 75 distinct master quartz effect titles. English uses the original Steam text.
 - The Windows EXE uses the original Steam game icon.
 
 ## Installation
@@ -32,10 +32,10 @@ Close the game before overwriting a slot. The editor creates and verifies a back
 
 ## Downloads
 
-- `Cold-Steel-II-Save-Editor-v1.0.3-Windows.zip` contains only `Cold_Steel_II_Save_Editor.exe`.
+- `Cold-Steel-II-Save-Editor-v1.0.4-Windows.zip` contains only `Cold_Steel_II_Save_Editor.exe`.
 - `SHA256SUMS.txt` is a separate release download with the SHA-256 checksum for the ZIP.
 
-The executable uses Qt and Qt for Python under LGPLv3 and FFmpeg under LGPLv2.1 or later. [Third-party notices, sources and rebuild instructions](https://github.com/Sqzzzzzzz/Cold-Steel-II-Save-Editor/blob/v1.0.3/third_party/README.md)
+The executable uses Qt and Qt for Python under LGPLv3 and FFmpeg under LGPLv2.1 or later. [Third-party notices, sources and rebuild instructions](https://github.com/Sqzzzzzzz/Cold-Steel-II-Save-Editor/blob/v1.0.4/third_party/README.md)
 
 ## Known Limitations
 

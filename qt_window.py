@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 
 from categories import GROUPS, CATEGORY_NAMES, CATEGORY_TO_GROUP, category_of, item_in_category
 from qt_backend import EditorCore, find_game_install, read_english_catalog, scan_game_tables, write_csv
-from game_art import ASSETS, INTRO_MOVIE, BackdropFrame, GameArt, prepare_art, steam_logo
+from game_art import ASSETS, BUNDLED_COLOR_CREST, COLOR_CREST, INTRO_MOVIE, BackdropFrame, GameArt, prepare_art, steam_logo
 from edit_changes import EditChanges
 from qt_inventory_model import InventoryModel, ItemRow
 from qt_first_launch import FirstLaunchPage
@@ -38,7 +38,7 @@ SAVE_FILTER = "Cold Steel II (*.dat *.bak)"
 STAT_NAMES_RU = ("СИЛ", "ЗАЩ", "СА", "ЗА", "ТЧН", "УКЛ", "СКР", "ХОД", "ОЗ", "ОЭ")
 
 
-from qt_hud_widgets import (hud_icon, HudButton, HudCheckBox, Backdrop, GlassPanel, AngularTab,
+from qt_hud_widgets import (hud_icon, HudButton, HudCheckBox, Backdrop, RailCrest, GlassPanel, AngularTab,
                             HudTableDelegate, HudTitleBar, ItemTitle, ElideLabel)
 
 
@@ -228,7 +228,9 @@ class MainWindow(QMainWindow):
         self.crest.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.crest.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.crest.setAccessibleName('Thors Military Academy')
-        self.emblem_art = QPixmap(str(ASSETS / 'thors.png'))
+        self.color_emblem_art = QPixmap(str(COLOR_CREST if COLOR_CREST.is_file() else BUNDLED_COLOR_CREST))
+        self.emblem_art = (self.color_emblem_art if not self.color_emblem_art.isNull()
+                           else QPixmap(str(ASSETS / 'thors.png')))
         if self.emblem_art.isNull():
             self.crest.setText('CS II')
         hl.addWidget(self.crest)
@@ -295,7 +297,9 @@ class MainWindow(QMainWindow):
             b.setIconSize(QSize(38,38))
             b.clicked.connect(lambda checked=False,k=key:self.navigate_section(k))
             self.navigation[key]=b;rl.addWidget(b)
-        rl.addStretch(1)
+        self.rail_crest = RailCrest()
+        self.rail_crest.set_art(self.emblem_art)
+        rl.addWidget(self.rail_crest, 1)
         self.rail_file=ElideLabel()
         self.rail_folder=ElideLabel(mode=Qt.TextElideMode.ElideMiddle)
         for label in (self.rail_file,self.rail_folder):
@@ -1677,7 +1681,9 @@ class MainWindow(QMainWindow):
         self._qt_setup()
         self._refresh_hud_icons()
         self._icon_pixmaps.clear();self._category_icons.clear()
-        self.emblem_art=QPixmap(str(result / 'thors.png'))
+        self.emblem_art = (self.color_emblem_art if not self.color_emblem_art.isNull()
+                           else QPixmap(str(result / 'thors.png')))
+        self.rail_crest.set_art(self.emblem_art)
         if self.emblem_art.isNull():self.crest.setText('CS II')
         self._set_logo(steam_logo(root))
         self.refresh_catalog()
