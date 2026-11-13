@@ -94,7 +94,7 @@ class PreviewTests(TestCase):
             slot = root / "save000.dat"
             slot.write_bytes(make_save((0, 2)))
             core.use_opened_save(core.read_save(slot), remember_directory=False)
-            self.assertEqual(core.source, slot)
+            self.assertEqual(core.source, slot.resolve())
             self.assertEqual(core.save_directory, STEAM_SAVE_DIRECTORY)
 
     def test_latest_falls_back_to_steam_after_opening_a_copy_folder(self):
@@ -108,7 +108,7 @@ class PreviewTests(TestCase):
             core = EditorCore(profile=profile, storage=SteamSaveStorage())
             core.settings['save_directory'] = str(root)
             with patch('qt_backend.STEAM_SAVE_DIRECTORY', steam):
-                self.assertEqual(core.read_save().source, path)
+                self.assertEqual(core.read_save().source, path.resolve())
 
     def test_csv_is_safe_to_open_and_refuses_to_replace_existing_file(self):
         with TemporaryDirectory() as directory:
@@ -188,7 +188,7 @@ class CleanWindowTests(TestCase):
                 slot = root / 'save001.dat'
                 slot.write_bytes(make_save((0, 2)))
                 window._open_save_finished(core.read_save(slot))
-                self.assertEqual(core.source, slot)
+                self.assertEqual(core.source, slot.resolve())
                 self.assertTrue(window.startup_page.isVisible())
                 potion = CatalogItem('Sample Potion', 'Restores health', 'items', 99, 0x81, 0)
                 core.apply_scan_result(ScanResult(root, (), {0: potion}))
