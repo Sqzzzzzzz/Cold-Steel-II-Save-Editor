@@ -9,3 +9,4 @@
 - Kept first-launch setup available when a save opens before the catalog. Added scrolling when the available screen area is smaller than the editor layout.
 - Applied the same ownership checks to editing and restoring DLC items. A backup with a removed DLC item can be exported separately.
 - Added verified Windows packaging, SHA-256 manifests, and a GitHub Actions workflow for the portable build and draft releases.
+- The public Windows ZIP contains one standalone EXE. Packaged smoke tests exercise switching between Russian and English, including Qt dialog translations.

@@ -10,7 +10,7 @@ import subprocess
 from tempfile import TemporaryDirectory
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from build_preview import ART, EDITOR_ICON, NAME, ROOT
+from build_preview import ART, EDITOR_ICON, NAME, NOTICES, ROOT
 from version import VERSION
 
 
@@ -48,6 +48,22 @@ def digest(path: Path) -> str:
         return file_digest(stream, 'sha256').hexdigest()
 
 
+def validate_onefile(executable: Path):
+    from PyInstaller.archive.readers import CArchiveReader
+
+    app = CArchiveReader(str(executable))
+    members = {name.replace('\\', '/'): name for name in app.toc}
+    required = {'branding/app.ico', 'PySide6/translations/qtbase_ru.qm', 'LICENSE'}
+    required.update(f'{NOTICES}/{Path(name).name}' for name in DOCUMENTS if name.startswith(f'{NOTICES}/'))
+    if not required <= members.keys():
+        raise ValueError(f'Missing embedded resources: {", ".join(sorted(required - members.keys()))}')
+    if app.extract(members['branding/app.ico']) != EDITOR_ICON.read_bytes():
+        raise ValueError('The embedded application icon differs from the editor icon.')
+    if any(name.startswith('assets/') or PurePosixPath(name).suffix.lower() in {'.dat', '.bak', '.vdf', '.log', '.key', '.pem'}
+           for name in members):
+        raise ValueError('Unexpected private files or game resources embedded in the executable.')
+
+
 def package(*, portable: bool, tag: str | None, save: Path | None) -> Path:
     if tag is not None and tag != f'v{VERSION}':
         raise ValueError(f'Tag must be v{VERSION}.')
@@ -55,23 +71,18 @@ def package(*, portable: bool, tag: str | None, save: Path | None) -> Path:
     bundle = dist / NAME
     internal = bundle / '_internal'
     assets = internal / 'assets'
-    required = (*DOCUMENTS,
-        '_internal/PySide6/translations/qtbase_ru.qm',
-        '_internal/base_library.zip',
-    )
-    missing = [name for name in required if not (bundle / name).is_file()]
-    if missing:
-        raise ValueError(f'Missing package files: {", ".join(missing)}. Rebuild first.')
     if portable:
-        if assets.exists():
-            raise ValueError('Build with --without-assets before packaging the portable release.')
-        if digest(internal / 'branding/app.ico') != digest(EDITOR_ICON):
-            raise ValueError('The packaged application icon differs from the original editor icon.')
-    elif any(not (assets / name).is_file() or digest(assets / name) != digest(ROOT / 'assets' / name)
-             for name in ART):
-        raise ValueError('The built assets differ from the local source assets. Rebuild first.')
-
-    executable = bundle / f'{NAME}.exe'
+        executable = dist / f'{NAME}.exe'
+        validate_onefile(executable)
+    else:
+        executable = bundle / f'{NAME}.exe'
+        required = (*DOCUMENTS, '_internal/PySide6/translations/qtbase_ru.qm', '_internal/base_library.zip')
+        missing = [name for name in required if not (bundle / name).is_file()]
+        if missing:
+            raise ValueError(f'Missing package files: {", ".join(missing)}. Rebuild first.')
+        if any(not (assets / name).is_file() or digest(assets / name) != digest(ROOT / 'assets' / name)
+               for name in ART):
+            raise ValueError('The built assets differ from the local source assets. Rebuild first.')
     binary = executable.read_bytes()
     pe = unpack_from('<I', binary, 0x3C)[0]
     if (not binary.startswith(b'MZ') or binary[pe:pe+4] != b'PE\0\0'
@@ -86,7 +97,9 @@ def package(*, portable: bool, tag: str | None, save: Path | None) -> Path:
         stage = Path(directory)
         candidate = stage / archive.name
         with ZipFile(candidate, 'w', ZIP_DEFLATED) as release:
-            for path in bundle_files(bundle, portable):
+            if portable:
+                release.write(executable, executable.name)
+            for path in (() if portable else bundle_files(bundle, False)):
                 member = path.relative_to(bundle.parent).as_posix()
                 if path == internal / 'base_library.zip':
                     # CPython also accepts a directory at the base_library.zip sys.path entry.
@@ -100,20 +113,24 @@ def package(*, portable: bool, tag: str | None, save: Path | None) -> Path:
                                 release.writestr(f'{member}/{entry.filename}', library.read(entry))
                 else:
                     release.write(path, member)
-            for doc in ('CHANGELOG.md', 'docs/release-notes.md'):
-                release.write(ROOT / doc, f'{NAME}/{doc}')
+            if not portable:
+                for doc in ('CHANGELOG.md', 'docs/release-notes.md'):
+                    release.write(ROOT / doc, f'{NAME}/{doc}')
 
         with ZipFile(candidate) as release:
             if (release.testzip() is not None or len(release.namelist()) != len(set(release.namelist()))
-                    or any(Path(member).suffix.lower() == '.zip' for member in release.namelist())):
+                    or any(Path(member).suffix.lower() == '.zip' for member in release.namelist())
+                    or (portable and release.namelist() != [executable.name])):
                 raise ValueError('ZIP integrity check failed.')
             release.extractall(stage)
-        unpacked = stage / NAME
+        unpacked = stage if portable else stage / NAME
         system = Path(os.environ['SystemRoot'])
         env = {key: value for key, value in os.environ.items() if not key.upper().startswith(('PYTHON', 'QT_'))}
         env['PATH'] = os.pathsep.join(map(str, (system / 'System32', system)))
         run = [str(unpacked / executable.name)]
-        subprocess.run([*run, '--smoke-test-clean'], cwd=stage, env=env, timeout=25, check=True)
+        work = stage / 'separate working directory'
+        work.mkdir()
+        subprocess.run([*run, '--smoke-test-clean'], cwd=work, env=env, timeout=30, check=True)
         fixture = stage / 'test-slot.dat'
         args = ['--smoke-test-portable' if portable else '--smoke-test', '--save', str(fixture)]
         if save is None:
@@ -135,7 +152,7 @@ def package(*, portable: bool, tag: str | None, save: Path | None) -> Path:
         else:
             snapshot = save.read_bytes()
         fixture.write_bytes(snapshot)
-        subprocess.run([*run, *args], cwd=stage, env=env, timeout=25, check=True)
+        subprocess.run([*run, *args], cwd=work, env=env, timeout=30, check=True)
         if fixture.read_bytes() != snapshot or (save is not None and save.read_bytes() != snapshot):
             raise ValueError('The startup check modified the save.')
         checksum = stage / 'SHA256SUMS.txt'

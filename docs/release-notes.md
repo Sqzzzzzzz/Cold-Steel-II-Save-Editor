@@ -26,7 +26,7 @@ The local build retains the original layout, colors, and Courageous background. 
 
 ## Installation
 
-Extract the Windows x64 ZIP and run `Cold_Steel_II_Save_Editor.exe` with `_internal` beside it. Python is included. Keep the Steam PC game installed for access to its item tables. `SHA256SUMS.txt` contains the archive checksum.
+Extract and run `Cold_Steel_II_Save_Editor.exe`. The ZIP contains one standalone executable with Python and Qt included. Keep the Steam PC game installed for access to its item tables.
 
 ## Requirements
 
@@ -39,8 +39,10 @@ Close the game before overwriting a slot. The editor creates and verifies a back
 
 ## Downloads
 
-- `Cold-Steel-II-Save-Editor-v1.0.0-Windows.zip` contains the app and its runtime.
-- `SHA256SUMS.txt` contains the SHA-256 checksum for the ZIP.
+- `Cold-Steel-II-Save-Editor-v1.0.0-Windows.zip` contains only `Cold_Steel_II_Save_Editor.exe`.
+- `SHA256SUMS.txt` is a separate release download with the SHA-256 checksum for the ZIP.
+
+The executable uses Qt and Qt for Python under LGPLv3. The project source and the instructions for using a modified runtime are available alongside this release. [Third-party notices and rebuild instructions](https://github.com/Sqzzzzzzz/Cold-Steel-II-Save-Editor/blob/v1.0.0/third_party/README.md)
 
 ## Known Limitations
 

@@ -28,7 +28,7 @@ Download `Cold-Steel-II-Save-Editor-v1.0.0-Windows.zip` and `SHA256SUMS.txt` fro
 ## Installation
 
 1. Compare the archive's SHA-256 with `SHA256SUMS.txt`. On Windows, run `Get-FileHash -Algorithm SHA256 -LiteralPath '<archive.zip>'`.
-2. Extract the entire ZIP and run `Cold_Steel_II_Save_Editor.exe`. Keep `_internal` alongside it.
+2. Extract `Cold_Steel_II_Save_Editor.exe` from the ZIP and run it. The executable includes Python and Qt.
 3. If Steam detection misses the installation, choose **Tools → Scan game folder** and select the folder containing `data`.
 
 ## How to Use
@@ -74,7 +74,7 @@ python -m venv .venv
 .venv\Scripts\python.exe package_release.py --portable --tag v1.0.0
 ```
 
-For a local themed build, supply the [local assets](docs/asset-provenance.md) and omit `--without-assets` and `--portable`. The packaging script extracts and runs the ZIP before writing its checksum. Pass `--save <path>` to exercise startup with a temporary copy of a real slot. The integration tests use the local Steam installation and copy genuine saves before writing.
+For a local themed build, supply the [local assets](docs/asset-provenance.md) and omit `--without-assets` and `--portable`. The packaging script extracts and runs the ZIP in both languages before writing its checksum. Pass `--save <path>` to exercise startup with a temporary copy of a real slot. The integration tests use the local Steam installation and copy genuine saves before writing.
 
 ## Credits & Disclaimer
 

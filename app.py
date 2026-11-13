@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
 
-from PySide6.QtCore import QSettings, QTimer
+from PySide6.QtCore import QCoreApplication, QSettings, QTimer
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
@@ -79,12 +79,14 @@ def main() -> int:
             if (not window.core.catalog or window.scan_thread is not None
                     or ((args.save or args.latest) and window.core.source is None)):
                 return
+            poll.stop()
             window.navigate_section("catalog")
             ready = (
                 window.isVisible() and window.cat_table.model().rowCount() > 0
+                and not window.windowIcon().isNull()
                 and (args.smoke_test_portable or (
                     ASSETS.is_dir() and not window.canvas.texture.isNull()
-                    and not window.logo_art.isNull() and not window.windowIcon().isNull()
+                    and not window.logo_art.isNull()
                     and not window._icon(0).isNull()
                 ))
                 and bool(window.core.item_name(0))
@@ -95,12 +97,22 @@ def main() -> int:
                 item_id = next((key for key in core.inventory_view() if core.can_delete(key)), None)
                 if item_id is not None:
                     index = model.index_for_id(item_id)
-                    count = core.quantity(item_id)
                     window.cat_table.selectRow(index.row())
-                    window.delete_btn.click()
-                    deleted = core.quantity(item_id) == 0
-                    window.undo_btn.click()
-                    ready = deleted and core.quantity(item_id) == count and not core.save.changed
+                for language, title, header, cancel in (
+                    ("ru", "Редактор сохранений", "Предмет", "Отмена"),
+                    ("en", "Save editor", "Item", "Cancel"),
+                    ("ru", "Редактор сохранений", "Предмет", "Отмена"),
+                ):
+                    window.lang.setCurrentIndex(int(language == "en"))
+                    ready &= (core.language == language and window.title.text() == title
+                              and model.headers[0] == header
+                              and QCoreApplication.translate("QPlatformTheme", "Cancel") == cancel)
+                    if item_id is not None:
+                        count = core.quantity(item_id)
+                        window.delete_btn.click()
+                        deleted = core.quantity(item_id) == 0
+                        window.undo_btn.click()
+                        ready &= deleted and core.quantity(item_id) == count and not core.save.changed
             window.close()
             app.exit(0 if ready else 2)
 
