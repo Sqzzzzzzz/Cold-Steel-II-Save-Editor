@@ -1,0 +1,79 @@
+name: Windows
+
+on:
+  push:
+    branches: [main, 'release/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      draft_release:
+        description: Attach the verified package to a draft release for the selected tag
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14.4'
+          architecture: x64
+      - run: python -m pip install -r requirements-build.txt
+      - run: python -m unittest discover -v
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - run: python build_preview.py --without-assets
+      - name: Package and verify the Windows build
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            python package_release.py --portable --tag "$env:GITHUB_REF_NAME"
+          } else {
+            python package_release.py --portable
+          }
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: windows-x64
+          path: |
+            release/portable/Cold-Steel-II-Save-Editor-v*-Windows.zip
+            release/portable/SHA256SUMS.txt
+          if-no-files-found: error
+
+  release:
+    if: github.event_name == 'workflow_dispatch' && inputs.draft_release && github.ref_type == 'tag'
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: windows-x64
+          path: release/portable
+      - name: Create the draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $zip = @(Get-ChildItem -LiteralPath release/portable -File -Filter '*.zip')
+          $manifest = Get-Item -LiteralPath release/portable/SHA256SUMS.txt
+          $expected = "Cold-Steel-II-Save-Editor-$env:GITHUB_REF_NAME-Windows.zip"
+          if ($zip.Count -ne 1 -or $zip[0].Name -cne $expected) { throw "Expected exactly one $expected." }
+          $digest = (Get-FileHash -LiteralPath $zip[0].FullName).Hash.ToLowerInvariant()
+          if ((Get-Content -LiteralPath $manifest.FullName -Raw).Trim() -ne "$digest  $($zip[0].Name)") {
+            throw 'The downloaded archive failed checksum verification.'
+          }
+          gh release create "$env:GITHUB_REF_NAME" "$($zip[0].FullName)" "$($manifest.FullName)" --draft --verify-tag --title "Cold Steel II Save Editor $env:GITHUB_REF_NAME" --notes-file docs/release-notes.md
